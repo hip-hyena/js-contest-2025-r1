@@ -347,6 +347,9 @@ const ChatFolders: FC<OwnProps & StateProps> = ({
   }
 
   const shouldRenderFolders = folderTabs && folderTabs.length > 1;
+  useEffect(() => {
+    document.body.classList.toggle('with-folder-tabs', shouldRenderFolders && !shouldHideFolderTabs);
+  }, [shouldRenderFolders, shouldHideFolderTabs]);
 
   return (
     <div

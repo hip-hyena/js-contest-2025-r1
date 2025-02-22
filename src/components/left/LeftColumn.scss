@@ -43,10 +43,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--color-background-dark);
-  }
-  .left-menu-background.is-back-button {
-    background: var(--color-background);
+    background-color: var(--color-background);
+    transition: 0.2s background-color ease-in-out;
   }
 
   .Button.smaller {
@@ -80,4 +78,8 @@
       --offset-x: -4.125rem;
     }
   }
+}
+
+body.with-folder-tabs .left-menu-background:not(.is-back-button) {
+  background-color: var(--color-background-dark);
 }
