@@ -180,7 +180,12 @@ export async function fetchWallpapers() {
     return undefined;
   }
 
+  const slugs = new Set<string>();
   const filteredWallpapers = result.wallpapers.filter((wallpaper) => {
+    if (wallpaper instanceof GramJs.WallPaperNoFile) {
+      return true;
+    }
+
     if (
       !(wallpaper instanceof GramJs.WallPaper)
       || !(wallpaper.document instanceof GramJs.Document)
@@ -188,11 +193,19 @@ export async function fetchWallpapers() {
       return false;
     }
 
-    return !wallpaper.pattern && wallpaper.document.mimeType !== 'application/x-tgwallpattern';
+    if (slugs.has(wallpaper.slug)) { // No idea why there are duplicates
+      return false;
+    }
+
+    slugs.add(wallpaper.slug);
+    //return !wallpaper.pattern && wallpaper.document.mimeType !== 'application/x-tgwallpattern';
+    return true;
   }) as GramJs.WallPaper[];
 
   filteredWallpapers.forEach((wallpaper) => {
-    localDb.documents[String(wallpaper.document.id)] = wallpaper.document as GramJs.Document;
+    if (wallpaper.document instanceof GramJs.Document) {
+      localDb.documents[String(wallpaper.document.id)] = wallpaper.document as GramJs.Document;
+    }
   });
 
   return {

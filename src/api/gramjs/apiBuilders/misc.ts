@@ -31,8 +31,20 @@ import { buildApiUser } from './users';
 
 export function buildApiWallpaper(wallpaper: GramJs.TypeWallPaper): ApiWallpaper | undefined {
   if (wallpaper instanceof GramJs.WallPaperNoFile) {
-    // TODO: Plain color wallpapers
-    return undefined;
+    if (wallpaper.settings?.backgroundColor === undefined) {
+      return undefined;
+    }
+
+    return {
+      opacity: Math.abs(wallpaper.settings.intensity || 100) / 100,
+      dark: wallpaper.settings.intensity! < 0,
+      colors: [
+        wallpaper.settings.backgroundColor,
+        wallpaper.settings.secondBackgroundColor,
+        wallpaper.settings.thirdBackgroundColor,
+        wallpaper.settings.fourthBackgroundColor || wallpaper.settings.secondBackgroundColor,
+      ].filter(Boolean).map(numberToHexColor),
+    };
   }
 
   const { slug } = wallpaper;
@@ -46,6 +58,14 @@ export function buildApiWallpaper(wallpaper: GramJs.TypeWallPaper): ApiWallpaper
   return {
     slug,
     document,
+    opacity: Math.abs(wallpaper.settings?.intensity || 100) / 100,
+    dark: wallpaper.settings?.intensity! < 0,
+    colors: wallpaper.settings?.backgroundColor !== undefined && [
+      wallpaper.settings.backgroundColor,
+      wallpaper.settings.secondBackgroundColor,
+      wallpaper.settings.thirdBackgroundColor,
+      wallpaper.settings.fourthBackgroundColor || wallpaper.settings.secondBackgroundColor,
+    ].filter(Boolean).map(numberToHexColor) || undefined,
   };
 }
 

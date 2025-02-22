@@ -1,4 +1,4 @@
-import type { ApiPrivacySettings, ApiUsername } from '../../../api/types';
+import type { ApiPrivacySettings, ApiUsername, ApiWallpaper } from '../../../api/types';
 import type { ActionReturnType } from '../../types';
 import {
   ProfileEditProgress,
@@ -235,7 +235,7 @@ addActionHandler('uploadWallpaper', async (global, actions, payload): Promise<vo
     settings: {
       ...global.settings,
       loadedWallpapers: [
-        withLocalMedia,
+        withLocalMedia as ApiWallpaper,
         ...global.settings.loadedWallpapers.slice(1),
       ],
     },

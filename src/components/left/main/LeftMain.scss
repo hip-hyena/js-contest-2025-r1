@@ -14,7 +14,7 @@
   .ChatFolders {
     height: 100%;
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     overflow: hidden;
 
     .tabs-placeholder {
@@ -48,6 +48,50 @@
     > .Transition {
       flex: 1;
       overflow: hidden;
+    }
+
+    &:not(.is-narrow) {
+      .TabList {
+        width: 80px;
+        background-color: var(--color-background-dark);
+        flex-direction: column;
+        align-items: stretch;
+        font-size: 10px;
+      }
+
+      .Tab {
+        height: 72px;
+        position: relative;
+        border-radius: var(--border-radius-messages-small);
+      }
+
+      .Tab_inner {
+        position: static;
+        flex-direction: column;
+      }
+
+      .Tab-icon {
+        font-size: 36px;
+      }
+
+      .Tab-custom-emoji {
+        width: 36px;
+        height: 36px;
+      }
+
+      .badge {
+        position: absolute;
+        top: 5px;
+        right: 5px;
+      }
+
+      .platform {
+        display: none;
+      }
+    }
+
+    & .is-narrow {
+      flex-direction: column;
     }
   }
 

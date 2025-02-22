@@ -44,6 +44,7 @@ type OwnProps = {
   stickerSet: StickerSetOrReactionsSetOrRecent;
   loadAndPlay: boolean;
   index: number;
+  selectedSticker?: string;
   idPrefix: string;
   isNearActive: boolean;
   favoriteStickers?: ApiSticker[];
@@ -85,6 +86,7 @@ const StickerSet: FC<OwnProps> = ({
   stickerSet,
   loadAndPlay,
   index,
+  selectedSticker,
   idPrefix,
   isNearActive,
   favoriteStickers,

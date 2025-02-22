@@ -106,6 +106,15 @@ const TextFormatter: FC<OwnProps> = ({
 
     const selectedFormats: ISelectedTextFormats = {};
     let { parentElement } = selectedRange.commonAncestorContainer;
+    const quotes = parentElement?.querySelectorAll('blockquote');
+    if (quotes) {
+      for (const quote of quotes) {
+        if (selectedRange.intersectsNode(quote)) {
+          selectedFormats.quote = true;
+          break;
+        }
+      }
+    }
     while (parentElement && parentElement.id !== EDITABLE_INPUT_ID) {
       const textFormat = TEXT_FORMAT_BY_TAG_NAME[parentElement.tagName];
       if (textFormat) {
@@ -137,19 +146,21 @@ const TextFormatter: FC<OwnProps> = ({
     }
   });
 
-  const getSelectedText = useLastCallback((shouldDropCustomEmoji?: boolean) => {
-    if (!selectedRange) {
+  const getSelectedText = useLastCallback((shouldDropCustomEmoji?: boolean, shouldUnwrapBlockquotes?: boolean, element?: HTMLElement) => {
+    if (!selectedRange && !element) {
       return undefined;
     }
-    fragmentEl.replaceChildren(selectedRange.cloneContents());
+    fragmentEl.replaceChildren(element ? element.cloneNode(true) : selectedRange!.cloneContents());
     if (shouldDropCustomEmoji) {
       fragmentEl.querySelectorAll(INPUT_CUSTOM_EMOJI_SELECTOR).forEach((el) => {
         el.replaceWith(el.getAttribute('alt')!);
       });
     }
-    fragmentEl.querySelectorAll('blockquote').forEach((el) => {
-      el.replaceWith(...el.childNodes);
-    });
+    if (shouldUnwrapBlockquotes) {
+      fragmentEl.querySelectorAll('blockquote,.pre-quote,.post-quote').forEach((el) => {
+        el.replaceWith(...el.childNodes);
+      });
+    }
     return fragmentEl.innerHTML;
   });
 
@@ -325,23 +336,37 @@ const TextFormatter: FC<OwnProps> = ({
 
   const handleQuoteText = useLastCallback(() => {
     if (selectedTextFormats.quote) {
-      const element = getSelectedElement();
-      if (
-        !selectedRange
-        || !element
-        || element.tagName !== 'BLOCKQUOTE'
-        || !element.textContent
-      ) {
+      let element = selectedRange?.commonAncestorContainer as HTMLElement | null;
+      while (element) {
+        const parent = element.parentElement?.closest('blockquote');
+        if (parent) {
+          element = parent;
+        } else {
+          break;
+        }
+      }
+      if (!selectedRange || !element || !element.textContent) {
         return;
       }
 
-      const range = document.createRange();
-      range.selectNode(element);
-      const sel = window.getSelection();
-      sel.removeAllRanges();
-      sel.addRange(range);
-
-      document.execCommand('insertHTML', false, element.innerHTML);
+      if (element.tagName === 'BLOCKQUOTE') {
+        /* Case 1: We selected some text INSIDE a blockquote. The whole blockquote should be unwrapped. */
+        const range = document.createRange();
+        /* I'm unable to make browsers reliably select the entire blockquote (not just its inner contents),
+          so I add extra span nodes before and after the blockquote to use as range anchors. */
+        range.setStartBefore(element.previousSibling &&
+          (element.previousSibling as HTMLElement).className === 'pre-quote' ? element.previousSibling : element);
+        range.setEndAfter(element.nextSibling &&
+          (element.nextSibling as HTMLElement).className === 'post-quote' ? element.nextSibling : element);
+        const sel = window.getSelection();
+        sel?.removeAllRanges();
+        sel?.addRange(range);
+        document.execCommand('insertHTML', false, getSelectedText(true, true, element));
+      } else {
+        /* Case 2: We selected some text CONTAINING a blockquote. All inner blockquotes should be unwrapped,
+          but the selection should not be changed. */
+        document.execCommand('insertHTML', false, getSelectedText(true, true));
+      }
       setSelectedTextFormats((selectedFormats) => ({
         ...selectedFormats,
         quote: false,
@@ -351,8 +376,8 @@ const TextFormatter: FC<OwnProps> = ({
       return;
     }
 
-    const text = getSelectedText(true);
-    document.execCommand('insertHTML', false, `<blockquote class="blockquote">${text}</blockquote>`);
+    const text = getSelectedText(true, true);
+    document.execCommand('insertHTML', false, `<span class="pre-quote"></span><blockquote class="blockquote">${text}</blockquote><span class="post-quote"></span>`);
     onClose();
   });
 
@@ -383,6 +408,65 @@ const TextFormatter: FC<OwnProps> = ({
   });
 
   const handleKeyDown = useLastCallback((e: KeyboardEvent) => {
+    const { isComposing } = e;
+    const html = getSelectedText();
+
+    // Handle blockquote escape logic when pressing Enter
+    if (!isComposing && e.key === 'Enter' && e.shiftKey) {
+      const selection = window.getSelection();
+      if (!selection || !selection.rangeCount) return;
+
+      const range = selection.getRangeAt(0);
+      const blockquote = range.startContainer.parentElement?.closest('blockquote');
+      
+      if (blockquote) {
+        // Count consecutive br elements at the end
+        let lastNode = blockquote.lastChild;
+        let brCount = 0;
+        while (lastNode && (
+          lastNode.nodeName === 'BR' || 
+          (lastNode.nodeType === Node.TEXT_NODE && !lastNode.textContent?.trim())
+        )) {
+          if (lastNode.nodeName === 'BR') brCount++;
+          lastNode = lastNode.previousSibling;
+        }
+
+        // If we already have 2 line breaks and trying to add third
+        if (brCount >= 2) {
+          e.preventDefault();
+          
+          // Remove the last two <br> elements
+          for (let i = 0; i < 2; i++) {
+            blockquote.lastChild && blockquote.removeChild(blockquote.lastChild);
+          }
+
+          // Insert new line break after blockquote
+          const br = document.createElement('br');
+          blockquote.parentNode?.insertBefore(br, blockquote.nextSibling);
+          
+          // Set cursor after the new line break
+          const newRange = document.createRange();
+          newRange.setStartAfter(br);
+          newRange.collapse(true);
+          selection.removeAllRanges();
+          selection.addRange(newRange);
+
+          // Ensure the input is updated
+          updateSelectedRange();
+          return;
+        }
+      }
+    }
+
+    // Original keydown logic
+    if (!isComposing && !html && (e.metaKey || e.ctrlKey)) {
+      const targetIndexDelta = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : undefined;
+      if (targetIndexDelta) {
+        e.preventDefault();
+        return;
+      }
+    }
+
     const HANDLERS_BY_KEY: Record<string, AnyToVoidFunction> = {
       k: openLinkControl,
       b: handleBoldText,

@@ -7,8 +7,72 @@
   :global(.symbol-set-container) {
     --symbol-set-gap-size: 0.625rem;
   }
+
+  :global(.folder-icons) {
+    --symbol-set-gap-size: 0.625rem;
+    display: grid;
+    grid-template-columns: repeat(8, var(--emoji-size, 4.5rem));
+    row-gap: 0.25rem;
+    column-gap: var(--symbol-set-gap-size, 0.625rem);
+    text-align: initial;
+    justify-content: space-between;
+  }
+
+  :global(.folder-icon-button) {
+    --custom-emoji-size: 2.25rem;
+    display: inline-block;
+    width: var(--custom-emoji-size);
+    height: var(--custom-emoji-size);
+    border-radius: var(--border-radius-messages-small);
+    background: transparent no-repeat center;
+    background-size: contain;
+    transition: background-color 0.15s ease, opacity 0.3s ease !important;
+    position: relative;
+    cursor: var(--custom-cursor, pointer);
+    font-size: var(--custom-emoji-size);
+    color: var(--color-composer-button);
+
+    &:hover {
+      background-color: var(--color-interactive-element-hover);
+    }
+  }
+
+  :global(.folder-icon-button.focus) {
+    background-color: var(--color-interactive-element-hover);
+  }
+
+  :global(.folder-icon-button .icon) {
+    display: block;
+    opacity: 0.7;
+  }
+
+  :global(.emoji-search) {
+    margin-bottom: 0.5rem;
+  }
+
+  :global(.emoji-search .SearchInput) {
+    border-radius: var(--border-radius-default-small);
+  }
+
+  :global(.emoji-search .SearchInput .icon-container-left) {
+    margin-top: -2px;
+  }
+
+  :global(.emoji-search .SearchInput input) {
+    height: 2.2rem;
+  }
+
 }
 
 .activated {
-  background-color: var(--color-interactive-element-hover);
+  background-color: var(--color-interactive-element-hover) !important;
+}
+
+:global(.CustomEmojiPicker-module__root [id^=emoji-category-] .symbol-set-header) {
+  justify-content: center;
+}
+:global(.CustomEmojiPicker-module__root [id^=emoji-category-] .symbol-set-name) {
+  margin: 0.7rem 0 0.4rem;
+  font-weight: 500;
+  opacity: 0.5;
 }

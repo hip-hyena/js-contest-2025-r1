@@ -10,6 +10,7 @@ import { IS_ANDROID, IS_IOS } from '../../util/windowEnvironment';
 import useHorizontalScroll from '../../hooks/useHorizontalScroll';
 import useOldLang from '../../hooks/useOldLang';
 import usePreviousDeprecated from '../../hooks/usePreviousDeprecated';
+import { IconName } from '../../types/icons';
 
 import Tab from './Tab';
 
@@ -18,6 +19,10 @@ import './TabList.scss';
 export type TabWithProperties = {
   id?: number;
   title: TeactNode;
+  icon?: IconName;
+  emoji?: string;
+  customEmoji?: string;
+  noCustomEmojiPlayback?: boolean;
   badgeCount?: number;
   isBlocked?: boolean;
   isBadgeActive?: boolean;
@@ -83,6 +88,10 @@ const TabList: FC<OwnProps> = ({
         <Tab
           key={tab.id}
           title={tab.title}
+          icon={tab.icon}
+          emoji={tab.emoji}
+          customEmoji={tab.customEmoji}
+          noCustomEmojiPlayback={tab.noCustomEmojiPlayback}
           isActive={i === activeTab}
           isBlocked={tab.isBlocked}
           badgeCount={tab.badgeCount}

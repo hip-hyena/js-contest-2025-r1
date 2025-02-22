@@ -1,6 +1,6 @@
 import type { FC } from '../../lib/teact/teact';
 import React, {
-  memo, useEffect, useMemo, useRef,
+  memo, useEffect, useMemo, useRef, useState,
 } from '../../lib/teact/teact';
 import { getGlobal, withGlobal } from '../../global';
 
@@ -13,6 +13,7 @@ import {
   FAVORITE_SYMBOL_SET_ID,
   POPULAR_SYMBOL_SET_ID,
   RECENT_SYMBOL_SET_ID,
+  SIMPLE_EMOJI_SET_ID,
   SLIDE_TRANSITION_DURATION,
   STICKER_PICKER_MAX_SHARED_COVERS,
   STICKER_SIZE_PICKER_HEADER,
@@ -50,6 +51,14 @@ import StickerSet from './StickerSet';
 
 import pickerStyles from '../middle/composer/StickerPicker.module.scss';
 import styles from './CustomEmojiPicker.module.scss';
+import SearchInput from '../ui/SearchInput';
+import { IconName } from '../../types/icons';
+import EmojiCategory from '../middle/composer/EmojiCategory';
+import { ensureEmojiData } from '../middle/composer/EmojiPicker';
+import { EmojiCategoryData } from '../middle/composer/EmojiPicker';
+import { MEMO_EMPTY_ARRAY } from '../../util/memo';
+import { useIntersectionObserver } from '../../hooks/useIntersectionObserver';
+import EmojiButton from '../middle/composer/EmojiButton';
 
 type OwnProps = {
   chatId?: string;
@@ -59,11 +68,16 @@ type OwnProps = {
   loadAndPlay: boolean;
   idPrefix?: string;
   withDefaultTopicIcons?: boolean;
+  withFolderIcons?: boolean;
+  withEmojiSearch?: boolean;
+  withSimpleEmojis?: boolean;
+  noRecent?: boolean;
   selectedReactionIds?: string[];
   isStatusPicker?: boolean;
   isReactionPicker?: boolean;
   isTranslucent?: boolean;
   onCustomEmojiSelect: (sticker: ApiSticker) => void;
+  onSimpleEmojiSelect?: (emoji: string) => void;
   onReactionSelect?: (reaction: ApiReactionWithPaid) => void;
   onReactionContext?: (reaction: ApiReactionWithPaid) => void;
   onContextMenuOpen?: NoneToVoidFunction;
@@ -97,12 +111,24 @@ const DEFAULT_ID_PREFIX = 'custom-emoji-set';
 const TOP_REACTIONS_COUNT = 16;
 const RECENT_REACTIONS_COUNT = 32;
 const RECENT_DEFAULT_STATUS_COUNT = 7;
-const FADED_BUTTON_SET_IDS = new Set([RECENT_SYMBOL_SET_ID, FAVORITE_SYMBOL_SET_ID, POPULAR_SYMBOL_SET_ID]);
+const FADED_BUTTON_SET_IDS = new Set([RECENT_SYMBOL_SET_ID, SIMPLE_EMOJI_SET_ID, FAVORITE_SYMBOL_SET_ID, POPULAR_SYMBOL_SET_ID]);
 const STICKER_SET_IDS_WITH_COVER = new Set([
   RECENT_SYMBOL_SET_ID,
+  SIMPLE_EMOJI_SET_ID,
   FAVORITE_SYMBOL_SET_ID,
   POPULAR_SYMBOL_SET_ID,
 ]);
+const FOLDER_ICONS: { icon: IconName, emoji: string }[] = [
+  { icon: 'folder-chats', emoji: '💬' },
+  { icon: 'folder-chat', emoji: '✅' },
+  { icon: 'folder-user', emoji: '👤' },
+  { icon: 'folder-group', emoji: '👥' },
+  { icon: 'folder-star', emoji: '⭐' },
+  { icon: 'folder-channel', emoji: '📢' },
+  { icon: 'folder-bot', emoji: '🤖' },
+  { icon: 'folder-default', emoji: '📁' },
+];
+const categoryIntersections: boolean[] = [];
 
 const CustomEmojiPicker: FC<OwnProps & StateProps> = ({
   className,
@@ -128,11 +154,16 @@ const CustomEmojiPicker: FC<OwnProps & StateProps> = ({
   isSavedMessages,
   isCurrentUserPremium,
   withDefaultTopicIcons,
+  withFolderIcons,
+  withEmojiSearch,
+  withSimpleEmojis,
+  noRecent,
   defaultTopicIconsId,
   defaultStatusIconsId,
   defaultTagReactions,
   isWithPaidReaction,
   onCustomEmojiSelect,
+  onSimpleEmojiSelect,
   onReactionSelect,
   onReactionContext,
   onContextMenuOpen,
@@ -147,6 +178,11 @@ const CustomEmojiPicker: FC<OwnProps & StateProps> = ({
   const sharedCanvasRef = useRef<HTMLCanvasElement>(null);
   // eslint-disable-next-line no-null/no-null
   const sharedCanvasHqRef = useRef<HTMLCanvasElement>(null);
+
+  const [categories, setCategories] = useState<EmojiCategoryData[]>();
+  const [emojis, setEmojis] = useState<AllEmojis>();
+  const [activeCategoryIndex, setActiveCategoryIndex] = useState(0);
+  const [emojiFilter, setEmojiFilter] = useState('');
 
   const { isMobile } = useAppLayout();
   const {
@@ -163,6 +199,7 @@ const CustomEmojiPicker: FC<OwnProps & StateProps> = ({
   const prefix = `${idPrefix}-custom-emoji`;
   const {
     activeSetIndex,
+    setActiveSetIndex,
     observeIntersectionForSet,
     observeIntersectionForPlayingItems,
     observeIntersectionForShowingItems,
@@ -175,6 +212,52 @@ const CustomEmojiPicker: FC<OwnProps & StateProps> = ({
   const lang = useOldLang();
 
   const areAddedLoaded = Boolean(addedCustomEmojiIds);
+
+  const filteredEmojis = useMemo(() => {
+    if (!emojis || !emojiFilter) {
+      return MEMO_EMPTY_ARRAY;
+    }
+    return Object.values(emojis).filter((emoji) => {
+      if ('names' in emoji) {
+        return emoji.names.some((name) => name.includes(emojiFilter));
+      }
+      return Object.values(emoji).some((emoji) => emoji.names.some((name) => name.includes(emojiFilter)));
+    });
+  }, [emojis, emojiFilter]);
+
+  const allCategories = useMemo(() => {
+    if (!categories) {
+      return MEMO_EMPTY_ARRAY;
+    }
+    const themeCategories = [...categories];
+    return themeCategories;
+  }, [categories, lang]);
+
+  const { observe: observeIntersection } = useIntersectionObserver({
+    rootRef: containerRef,
+    throttleMs: 200,
+  }, (entries) => {
+    entries.forEach((entry) => {
+      const { id } = entry.target as HTMLDivElement;
+      if (!id || !id.startsWith('emoji-category-')) {
+        return;
+      }
+
+      const index = Number(id.replace('emoji-category-', ''));
+      categoryIntersections[index] = entry.isIntersecting;
+    });
+
+    const minIntersectingIndex = categoryIntersections.reduce((lowestIndex, isIntersecting, index) => {
+      return isIntersecting && index < lowestIndex ? index : lowestIndex;
+    }, Infinity);
+
+    if (minIntersectingIndex === Infinity) {
+      return;
+    }
+
+    setActiveSetIndex(0);
+    setActiveCategoryIndex(minIntersectingIndex);
+  });
 
   const allSets = useMemo(() => {
     const defaultSets: StickerSetOrReactionsSetOrRecent[] = [];
@@ -192,74 +275,86 @@ const CustomEmojiPicker: FC<OwnProps & StateProps> = ({
       }
     }
 
-    if (isReactionPicker && !isSavedMessages) {
-      const topReactionsSlice: ApiReactionWithPaid[] = topReactions?.slice(0, TOP_REACTIONS_COUNT) || [];
-      if (isWithPaidReaction) {
-        topReactionsSlice.unshift({ type: 'paid' });
-      }
-      if (topReactionsSlice?.length) {
-        defaultSets.push({
-          id: TOP_SYMBOL_SET_ID,
-          accessHash: '',
-          title: lang('Reactions'),
-          reactions: topReactionsSlice,
-          count: topReactionsSlice.length,
-          isEmoji: true,
-        });
-      }
+    if (!noRecent) {
+      if (isReactionPicker && !isSavedMessages) {
+        const topReactionsSlice: ApiReactionWithPaid[] = topReactions?.slice(0, TOP_REACTIONS_COUNT) || [];
+        if (isWithPaidReaction) {
+          topReactionsSlice.unshift({ type: 'paid' });
+        }
+        if (topReactionsSlice?.length) {
+          defaultSets.push({
+            id: TOP_SYMBOL_SET_ID,
+            accessHash: '',
+            title: lang('Reactions'),
+            reactions: topReactionsSlice,
+            count: topReactionsSlice.length,
+            isEmoji: true,
+          });
+        }
 
-      const cleanRecentReactions = (recentReactions || [])
-        .filter((reaction) => !topReactionsSlice.some((topReaction) => isSameReaction(topReaction, reaction)))
-        .slice(0, RECENT_REACTIONS_COUNT);
-      const cleanAvailableReactions = (availableReactions || [])
-        .filter(({ isInactive }) => !isInactive)
-        .map(({ reaction }) => reaction)
-        .filter((reaction) => {
-          return !topReactionsSlice.some((topReaction) => isSameReaction(topReaction, reaction))
-            && !cleanRecentReactions.some((topReaction) => isSameReaction(topReaction, reaction));
-        });
-      if (cleanAvailableReactions?.length || cleanRecentReactions?.length) {
-        const isPopular = !cleanRecentReactions?.length;
-        const allRecentReactions = cleanRecentReactions.concat(cleanAvailableReactions);
+        const cleanRecentReactions = (recentReactions || [])
+          .filter((reaction) => !topReactionsSlice.some((topReaction) => isSameReaction(topReaction, reaction)))
+          .slice(0, RECENT_REACTIONS_COUNT);
+        const cleanAvailableReactions = (availableReactions || [])
+          .filter(({ isInactive }) => !isInactive)
+          .map(({ reaction }) => reaction)
+          .filter((reaction) => {
+            return !topReactionsSlice.some((topReaction) => isSameReaction(topReaction, reaction))
+              && !cleanRecentReactions.some((topReaction) => isSameReaction(topReaction, reaction));
+          });
+        if (cleanAvailableReactions?.length || cleanRecentReactions?.length) {
+          const isPopular = !cleanRecentReactions?.length;
+          const allRecentReactions = cleanRecentReactions.concat(cleanAvailableReactions);
+          defaultSets.push({
+            id: isPopular ? POPULAR_SYMBOL_SET_ID : RECENT_SYMBOL_SET_ID,
+            accessHash: '',
+            title: lang(isPopular ? 'PopularReactions' : 'RecentStickers'),
+            reactions: allRecentReactions,
+            count: allRecentReactions.length,
+            isEmoji: true,
+          });
+        }
+      } else if (isStatusPicker) {
+        const defaultStatusIconsPack = stickerSetsById[defaultStatusIconsId!];
+        if (defaultStatusIconsPack?.stickers?.length) {
+          const stickers = defaultStatusIconsPack.stickers
+            .slice(0, RECENT_DEFAULT_STATUS_COUNT)
+            .concat(recentCustomEmojis || []);
+          defaultSets.push({
+            ...defaultStatusIconsPack,
+            stickers,
+            count: stickers.length,
+            id: RECENT_SYMBOL_SET_ID,
+            title: lang('RecentStickers'),
+          });
+        }
+      } else if (withDefaultTopicIcons) {
+        const defaultTopicIconsPack = stickerSetsById[defaultTopicIconsId!];
+        if (defaultTopicIconsPack.stickers?.length) {
+          defaultSets.push({
+            ...defaultTopicIconsPack,
+            id: RECENT_SYMBOL_SET_ID,
+            title: lang('RecentStickers'),
+          });
+        }
+      } else if (recentCustomEmojis?.length) {
         defaultSets.push({
-          id: isPopular ? POPULAR_SYMBOL_SET_ID : RECENT_SYMBOL_SET_ID,
-          accessHash: '',
-          title: lang(isPopular ? 'PopularReactions' : 'RecentStickers'),
-          reactions: allRecentReactions,
-          count: allRecentReactions.length,
+          id: RECENT_SYMBOL_SET_ID,
+          accessHash: '0',
+          title: lang('RecentStickers'),
+          stickers: recentCustomEmojis,
+          count: recentCustomEmojis.length,
           isEmoji: true,
         });
       }
-    } else if (isStatusPicker) {
-      const defaultStatusIconsPack = stickerSetsById[defaultStatusIconsId!];
-      if (defaultStatusIconsPack?.stickers?.length) {
-        const stickers = defaultStatusIconsPack.stickers
-          .slice(0, RECENT_DEFAULT_STATUS_COUNT)
-          .concat(recentCustomEmojis || []);
-        defaultSets.push({
-          ...defaultStatusIconsPack,
-          stickers,
-          count: stickers.length,
-          id: RECENT_SYMBOL_SET_ID,
-          title: lang('RecentStickers'),
-        });
-      }
-    } else if (withDefaultTopicIcons) {
-      const defaultTopicIconsPack = stickerSetsById[defaultTopicIconsId!];
-      if (defaultTopicIconsPack.stickers?.length) {
-        defaultSets.push({
-          ...defaultTopicIconsPack,
-          id: RECENT_SYMBOL_SET_ID,
-          title: lang('RecentStickers'),
-        });
-      }
-    } else if (recentCustomEmojis?.length) {
+    }
+
+    if (withSimpleEmojis) {
       defaultSets.push({
-        id: RECENT_SYMBOL_SET_ID,
-        accessHash: '0',
-        title: lang('RecentStickers'),
-        stickers: recentCustomEmojis,
-        count: recentCustomEmojis.length,
+        id: SIMPLE_EMOJI_SET_ID,
+        accessHash: '',
+        title: '',
+        count: 0,
         isEmoji: true,
       });
     }
@@ -310,8 +405,21 @@ const CustomEmojiPicker: FC<OwnProps & StateProps> = ({
     animateHorizontalScroll(header, newLeft);
   }, [areAddedLoaded, activeSetIndex]);
 
+  // Initialize data on first render.
+  useEffect(() => {
+    setTimeout(async () => {
+      const emojiData = await ensureEmojiData();
+      setCategories(emojiData.categories);
+      setEmojis(emojiData.emojis as AllEmojis);
+    }, 200);
+  }, []);
+
   const handleEmojiSelect = useLastCallback((emoji: ApiSticker) => {
     onCustomEmojiSelect(emoji);
+  });
+
+  const handleSimpleEmojiSelect = useLastCallback((emoji: string) => {
+    onSimpleEmojiSelect && onSimpleEmojiSelect(emoji);
   });
 
   function renderCover(stickerSet: StickerSetOrReactionsSetOrRecent, index: number) {
@@ -330,6 +438,7 @@ const CustomEmojiPicker: FC<OwnProps & StateProps> = ({
 
     if (STICKER_SET_IDS_WITH_COVER.has(stickerSet.id) || stickerSet.hasThumbnail || !firstSticker) {
       const isRecent = stickerSet.id === RECENT_SYMBOL_SET_ID || stickerSet.id === POPULAR_SYMBOL_SET_ID;
+      const isSimpleEmojis = stickerSet.id === SIMPLE_EMOJI_SET_ID;
       const isFaded = FADED_BUTTON_SET_IDS.has(stickerSet.id);
       return (
         <Button
@@ -340,10 +449,12 @@ const CustomEmojiPicker: FC<OwnProps & StateProps> = ({
           faded={isFaded}
           color="translucent"
           // eslint-disable-next-line react/jsx-no-bind
-          onClick={() => selectStickerSet(isRecent ? 0 : index)}
+          onClick={() => selectStickerSet((isRecent || isSimpleEmojis) ? 0 : index, isSimpleEmojis)}
         >
           {isRecent ? (
             <Icon name="recent" />
+          ) : isSimpleEmojis ? (
+            <Icon name="smile" />
           ) : (
             <StickerSetCover
               stickerSet={stickerSet as ApiStickerSet}
@@ -421,10 +532,72 @@ const CustomEmojiPicker: FC<OwnProps & StateProps> = ({
         onScroll={handleContentScroll}
         className={listClassName}
       >
+        {withEmojiSearch && (
+          <div className="emoji-search">
+            <SearchInput
+              inputId="emoji-search"
+              placeholder={lang('Search Emoji')}
+              onChange={setEmojiFilter}
+            />
+          </div>
+        )}
+        {withEmojiSearch && filteredEmojis.length > 0 && (
+          <div className="emoji-search-results symbol-set-container">
+            {filteredEmojis.map((emoji) => {
+              // Some emojis have multiple skins and are represented as an Object with emojis for all skins.
+              // For now, we select only the first emoji with 'neutral' skin.
+              const displayedEmoji = 'id' in emoji ? emoji : emoji[1];
+
+              return (
+                <EmojiButton
+                  key={displayedEmoji.id}
+                  emoji={displayedEmoji}
+                  focus={selectedReactionIds && selectedReactionIds.includes(displayedEmoji.native)}
+                  onClick={handleSimpleEmojiSelect}
+                />
+              );
+            })}
+          </div>
+        )}
+        {withFolderIcons && filteredEmojis.length === 0 && (
+          <div className="folder-icons">
+            {FOLDER_ICONS.map(({ icon, emoji }) => {
+              return (
+                <div className={buildClassName(
+                  'folder-icon-button',
+                  'interactive',
+                  selectedReactionIds && selectedReactionIds.includes(emoji) && 'focus'
+                )} key={icon} onClick={() => handleSimpleEmojiSelect(emoji)}>
+                  <Icon name={icon} />
+                </div>
+              );
+            })}
+          </div>
+        )}
+        
         {allSets.map((stickerSet, i) => {
           const shouldHideHeader = stickerSet.id === TOP_SYMBOL_SET_ID
-            || (stickerSet.id === RECENT_SYMBOL_SET_ID && (withDefaultTopicIcons || isStatusPicker));
+            || (stickerSet.id === RECENT_SYMBOL_SET_ID && (withDefaultTopicIcons || isStatusPicker))
+            || (stickerSet.id === SIMPLE_EMOJI_SET_ID);
           const isChatEmojiSet = stickerSet.id === chatEmojiSetId;
+
+          if (stickerSet.id === SIMPLE_EMOJI_SET_ID) {
+            return (
+              <div key={stickerSet.id}>{emojis && allCategories && (
+                allCategories.map((category, i) => (
+                  <EmojiCategory
+                    category={category}
+                    index={i + 1}
+                    allEmojis={emojis}
+                    selectedEmojis={selectedReactionIds}
+                    observeIntersection={observeIntersection}
+                    shouldRender={activeCategoryIndex >= i - 1 && activeCategoryIndex <= i + 1}
+                    onEmojiSelect={handleSimpleEmojiSelect}
+                  />
+                ))
+              )}</div>
+            );
+          }
 
           return (
             <StickerSet

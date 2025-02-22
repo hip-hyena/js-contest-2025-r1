@@ -4,6 +4,15 @@
   cursor: var(--custom-cursor, pointer);
   position: relative;
 
+  &.gradient img, &.gradient .thumbnail {
+    mix-blend-mode: overlay;
+    opacity: 0.5;
+  }
+
+  &.gradient.dark img, &.gradient.dark .thumbnail {
+    display: none;
+  }
+
   .media-inner,
   &::after {
     position: absolute;

@@ -1,0 +1,21 @@
+.GradientWallpaper {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  transition: opacity 0.2s ease-in-out;
+
+  &.hidden {
+    opacity: 0;
+  }
+
+  &.dark {
+    background: rgb(20, 20, 20);
+  }
+  &.dark &-canvas {
+    mask-position: center;
+    mask-image: var(--custom-background);
+    opacity: var(--pattern-opacity);
+  }
+}

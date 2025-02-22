@@ -100,6 +100,7 @@ import MiddleSearch from './search/MiddleSearch.async';
 
 import './MiddleColumn.scss';
 import styles from './MiddleColumn.module.scss';
+import GradientWallpaper from '../common/GradientWallpaper';
 
 interface OwnProps {
   leftColumnRef: React.RefObject<HTMLDivElement>;
@@ -123,9 +124,12 @@ type StateProps = {
   customBackground?: string;
   backgroundColor?: string;
   patternColor?: string;
+  patternOpacity?: number;
+  gradientColors?: string[];
   isLeftColumnShown?: boolean;
   isRightColumnShown?: boolean;
   isBackgroundBlurred?: boolean;
+  isBackgroundDark?: boolean;
   leftColumnWidth?: number;
   hasActiveMiddleSearch?: boolean;
   isSelectModeActive?: boolean;
@@ -183,9 +187,12 @@ function MiddleColumn({
   theme,
   backgroundColor,
   patternColor,
+  patternOpacity,
+  gradientColors,
   isLeftColumnShown,
   isRightColumnShown,
   isBackgroundBlurred,
+  isBackgroundDark,
   leftColumnWidth,
   hasActiveMiddleSearch,
   isSelectModeActive,
@@ -426,8 +433,10 @@ function MiddleColumn({
     styles.withTransition,
     customBackground && styles.customBgImage,
     backgroundColor && styles.customBgColor,
-    customBackground && isBackgroundBlurred && styles.blurred,
+    customBackground && isBackgroundBlurred && !gradientColors && styles.blurred,
+    isBackgroundDark && styles.dark,
     isRightColumnShown && styles.withRightColumn,
+    gradientColors && styles.gradient,
     IS_ELECTRON && !(renderingChatId && renderingThreadId) && styles.draggable,
   );
 
@@ -503,8 +512,17 @@ function MiddleColumn({
       )}
       <div
         className={bgClassName}
-        style={customBackgroundValue ? `--custom-background: ${customBackgroundValue}` : undefined}
-      />
+        style={`--pattern-opacity: ${patternOpacity};` + (customBackgroundValue ? `--custom-background: ${customBackgroundValue}` : '')}
+      >
+        {gradientColors && (
+          <GradientWallpaper
+            colors={gradientColors.join(',')}
+            rotateOnSend
+            dark={isBackgroundDark}
+            opacity={patternOpacity}
+          />
+        )}
+      </div>
       <div id="middle-column-portals" />
       {Boolean(renderingChatId && renderingThreadId) && (
         <>
@@ -717,7 +735,7 @@ export default memo(withGlobal<OwnProps>(
   (global, { isMobile }): StateProps => {
     const theme = selectTheme(global);
     const {
-      isBlurred: isBackgroundBlurred, background: customBackground, backgroundColor, patternColor,
+      isBlurred: isBackgroundBlurred, isDark: isBackgroundDark, background: customBackground, backgroundColor, patternColor, patternOpacity, gradientColors,
     } = global.settings.themes[theme] || {};
 
     const {
@@ -733,9 +751,12 @@ export default memo(withGlobal<OwnProps>(
       customBackground,
       backgroundColor,
       patternColor,
+      patternOpacity,
+      gradientColors,
       isLeftColumnShown,
       isRightColumnShown: selectIsRightColumnShown(global, isMobile),
       isBackgroundBlurred,
+      isBackgroundDark,
       hasActiveMiddleSearch: Boolean(selectCurrentMiddleSearch(global)),
       isSelectModeActive: selectIsInSelectMode(global),
       isSeenByModalOpen: Boolean(seenByModal),

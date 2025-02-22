@@ -394,6 +394,51 @@ const MessageInput: FC<OwnProps & StateProps> = ({
       }
     }
 
+    if (!isComposing && e.key === 'Enter' && e.shiftKey) {
+      const selection = window.getSelection();
+      if (!selection || !selection.rangeCount) return;
+  
+      const range = selection.getRangeAt(0);
+      const blockquote = range.startContainer.parentElement?.closest('blockquote');
+      
+      if (blockquote) {
+        // Count consecutive br elements at the end
+        let lastNode = blockquote.lastChild;
+        let brCount = 0;
+        while (lastNode && (
+          lastNode.nodeName === 'BR' || 
+          (lastNode.nodeType === Node.TEXT_NODE && !lastNode.textContent?.trim())
+        )) {
+          if (lastNode.nodeName === 'BR' || lastNode.textContent === '\n') brCount++;
+          lastNode = lastNode.previousSibling;
+        }
+  
+        if (brCount >= 3) {
+          e.preventDefault();
+          
+          // Remove the last two <br> elements
+          for (let i = 0; i < 3; i++) {
+            blockquote.lastChild && blockquote.removeChild(blockquote.lastChild);
+          }
+  
+          // Insert new line break after blockquote
+          const br = document.createElement('br');
+          blockquote.parentNode?.insertBefore(br, blockquote.nextSibling);
+          
+          // Set cursor after the new line break
+          const newRange = document.createRange();
+          newRange.setStartAfter(br);
+          newRange.collapse(true);
+          selection.removeAllRanges();
+          selection.addRange(newRange);
+  
+          // Ensure the input is updated
+          handleChange({ currentTarget: inputRef.current! } as React.ChangeEvent<HTMLDivElement>);
+          return;
+        }
+      }
+    }
+
     if (!isComposing && e.key === 'Enter' && !e.shiftKey) {
       if (
         !isMobileDevice

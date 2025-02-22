@@ -74,6 +74,9 @@ export interface IThemeSettings {
   backgroundColor?: string;
   patternColor?: string;
   isBlurred?: boolean;
+  isDark?: boolean;
+  gradientColors?: string[];
+  patternOpacity?: number;
 }
 
 export type NotifySettings = {

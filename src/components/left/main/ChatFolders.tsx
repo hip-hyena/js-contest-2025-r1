@@ -4,7 +4,7 @@ import React, {
 } from '../../../lib/teact/teact';
 import { getActions, getGlobal, withGlobal } from '../../../global';
 
-import type { ApiChatFolder, ApiChatlistExportedInvite, ApiSession } from '../../../api/types';
+import type { ApiChatFolder, ApiChatlistExportedInvite, ApiSession, ApiSticker } from '../../../api/types';
 import type { GlobalState } from '../../../global/types';
 import type { FolderEditDispatch } from '../../../hooks/reducers/useFoldersReducer';
 import type { LeftColumnContent, SettingsScreens } from '../../../types';
@@ -32,7 +32,7 @@ import StoryRibbon from '../../story/StoryRibbon';
 import TabList from '../../ui/TabList';
 import Transition from '../../ui/Transition';
 import ChatList from './ChatList';
-
+import { IconName } from '../../../types/icons';
 type OwnProps = {
   onSettingsScreenSelect: (screen: SettingsScreens) => void;
   foldersDispatch: FolderEditDispatch;
@@ -60,6 +60,17 @@ type StateProps = {
 
 const SAVED_MESSAGES_HOTKEY = '0';
 const FIRST_FOLDER_INDEX = 0;
+
+export const FOLDER_ICONS: Record<string, IconName> = {
+  '💬': 'folder-chats',
+  '✅': 'folder-chat',
+  '👤': 'folder-user',
+  '👥': 'folder-group',
+  '⭐': 'folder-star',
+  '📢': 'folder-channel',
+  '🤖': 'folder-bot',
+  '📁': 'folder-default',
+};
 
 const ChatFolders: FC<OwnProps & StateProps> = ({
   foldersDispatch,
@@ -196,13 +207,26 @@ const ChatFolders: FC<OwnProps & StateProps> = ({
         });
       }
 
+      let customEmoji: string | undefined;
+      let text = title.text;
+      let entities = title.entities;
+      if (entities?.length && entities[0].type === 'MessageEntityCustomEmoji' && entities[0].offset === 0) {
+        customEmoji = entities[0].documentId;
+        text = text.slice(entities[0].length + 1);
+        entities = entities.slice(1);
+      }
+
       return {
         id,
         title: renderTextWithEntities({
-          text: title.text,
-          entities: title.entities,
+          text,
+          entities,
           noCustomEmojiPlayback: folder.noTitleAnimations,
         }),
+        icon: FOLDER_ICONS[folder.emoticon!] || 'folder-default',
+        emoji: folder.emoticon && folder.emoticon in FOLDER_ICONS ? folder.emoticon : undefined,
+        customEmoji,
+        noCustomEmojiPlayback: folder.noTitleAnimations,
         badgeCount: folderCountersById[id]?.chatsCount,
         isBadgeActive: Boolean(folderCountersById[id]?.notificationsCount),
         isBlocked,
@@ -333,7 +357,6 @@ const ChatFolders: FC<OwnProps & StateProps> = ({
         shouldRenderStoryRibbon && 'with-story-ribbon',
       )}
     >
-      {shouldRenderStoryRibbon && <StoryRibbon isClosing={isStoryRibbonClosing} />}
       {shouldRenderFolders ? (
         <TabList
           contextRootElementSelector="#LeftColumn"
@@ -346,7 +369,7 @@ const ChatFolders: FC<OwnProps & StateProps> = ({
       ) : undefined}
       <Transition
         ref={transitionRef}
-        name={shouldSkipHistoryAnimations ? 'none' : lang.isRtl ? 'slideOptimizedRtl' : 'slideOptimized'}
+        name={'none'}
         activeKey={activeChatFolder}
         renderCount={shouldRenderFolders ? folderTabs.length : undefined}
       >

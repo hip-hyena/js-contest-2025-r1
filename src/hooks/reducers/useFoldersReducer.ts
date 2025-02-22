@@ -1,6 +1,6 @@
 import { getGlobal } from '../../global';
 
-import type { ApiChatFolder } from '../../api/types';
+import type { ApiChatFolder, ApiSticker, ApiMessageEntity } from '../../api/types';
 import type { IconName } from '../../types/icons';
 import type { Dispatch, StateReducer } from '../useReducer';
 
@@ -109,14 +109,14 @@ export type FoldersState = {
   error?: string;
   folderId?: number;
   chatFilter: string;
-  folder: Omit<ApiChatFolder, 'id' | 'description' | 'emoticon'>;
+  folder: Omit<ApiChatFolder, 'id' | 'description'>;
   includeFilters?: FolderIncludeFilters;
   excludeFilters?: FolderExcludeFilters;
 };
 export type FoldersActions = (
   'setTitle' | 'saveFilters' | 'editFolder' | 'reset' | 'setChatFilter' | 'setIsLoading' | 'setError' |
   'editIncludeFilters' | 'editExcludeFilters' | 'setIncludeFilters' | 'setExcludeFilters' | 'setIsTouched' |
-  'setFolderId' | 'setIsChatlist'
+  'setFolderId' | 'setIsChatlist' | 'setEmoticon' | 'setCustomEmoji'
   );
 export type FolderEditDispatch = Dispatch<FoldersState, FoldersActions>;
 
@@ -135,15 +135,69 @@ const foldersReducer: StateReducer<FoldersState, FoldersActions> = (
   action,
 ): FoldersState => {
   switch (action.type) {
-    case 'setTitle':
+    case 'setTitle': {
+      let prefix = '';
+      if (state.folder.title.entities?.length && state.folder.title.entities[0].type === 'MessageEntityCustomEmoji' && state.folder.title.entities[0].offset === 0) {
+        prefix = state.folder.title.text.slice(state.folder.title.entities[0].length + 1);
+      }
       return {
         ...state,
         folder: {
           ...state.folder,
-          title: { text: action.payload },
+          title: {
+            ...state.folder.title,
+            text: prefix + action.payload,
+          },
         },
         isTouched: true,
       };
+    }
+    case 'setEmoticon': {
+      let text = state.folder.title.text;
+      if (state.folder.title.entities?.length &&
+        state.folder.title.entities[0].type === 'MessageEntityCustomEmoji' &&
+        state.folder.title.entities[0].offset === 0) {
+        text = state.folder.title.text.slice(state.folder.title.entities[0].length + 1);
+      }
+      return {
+        ...state,
+        folder: {
+          ...state.folder,
+          title: {
+            text,
+            entities: [],
+          },
+          emoticon: action.payload,
+        },
+        isTouched: true,
+      };
+    }
+    case 'setCustomEmoji': {
+      const emoji: ApiSticker = action.payload;
+      let text = state.folder.title.text;
+      if (state.folder.title.entities?.length &&
+        state.folder.title.entities[0].type === 'MessageEntityCustomEmoji' &&
+        state.folder.title.entities[0].offset === 0) {
+        text = state.folder.title.text.slice(state.folder.title.entities[0].length + 1);
+      }
+      return {
+        ...state,
+        folder: {
+          ...state.folder,
+          title: {
+            text: emoji.emoji + ' ' + text,
+            entities: [{
+              type: 'MessageEntityCustomEmoji',
+              offset: 0,
+              length: (emoji.emoji || '').length,
+              documentId: emoji.id,
+            } as ApiMessageEntity],
+          },
+          emoticon: '',
+        },
+        isTouched: true,
+      };
+    }
     case 'setFolderId':
       return {
         ...state,

@@ -515,29 +515,34 @@ const Composer: FC<OwnProps & StateProps> = ({
 
   const insertHtmlAndUpdateCursor = useLastCallback((newHtml: string, inInputId: string = editableInputId) => {
     if (inInputId === editableInputId && isComposerBlocked) return;
-    const selection = window.getSelection()!;
-    let messageInput: HTMLDivElement;
-    if (inInputId === editableInputId) {
-      messageInput = document.querySelector<HTMLDivElement>(editableInputCssSelector)!;
-    } else {
-      messageInput = document.getElementById(inInputId) as HTMLDivElement;
-    }
+    
+    const messageInput = inInputId === editableInputId
+      ? document.querySelector<HTMLDivElement>(editableInputCssSelector)
+      : document.getElementById(inInputId) as HTMLDivElement;
 
-    if (selection.rangeCount) {
-      const selectionRange = selection.getRangeAt(0);
-      if (isSelectionInsideInput(selectionRange, inInputId)) {
-        insertHtmlInSelection(newHtml);
-        messageInput.dispatchEvent(new Event('input', { bubbles: true }));
-        return;
+    if (!messageInput) return;
+
+    messageInput.focus();
+    
+    if (document.queryCommandSupported('insertHTML')) {
+      document.execCommand('insertHTML', false, newHtml);
+    } else {
+      const selection = window.getSelection()!;
+      if (selection.rangeCount) {
+        const range = selection.getRangeAt(0);
+        if (isSelectionInsideInput(range, inInputId)) {
+          const fragment = range.createContextualFragment(newHtml);
+          range.deleteContents();
+          range.insertNode(fragment);
+        } else {
+          messageInput.innerHTML += newHtml;
+        }
+      } else {
+        messageInput.innerHTML += newHtml;
       }
     }
 
-    setHtml(`${getHtml()}${newHtml}`);
-
-    // If selection is outside of input, set cursor at the end of input
-    requestNextMutation(() => {
-      focusEditableElement(messageInput);
-    });
+    messageInput.dispatchEvent(new Event('input', { bubbles: true }));
   });
 
   const insertTextAndUpdateCursor = useLastCallback((

@@ -22,25 +22,32 @@ import useShowTransitionDeprecated from '../../../hooks/useShowTransitionDepreca
 import ProgressSpinner from '../../ui/ProgressSpinner';
 
 import './WallpaperTile.scss';
+import GradientWallpaper from '../../common/GradientWallpaper';
 
 type OwnProps = {
   wallpaper: ApiWallpaper;
+  colors?: string;
+  opacity?: number;
+  dark?: boolean;
   theme: ThemeKey;
   isSelected: boolean;
-  onClick: (slug: string) => void;
+  onClick: (slug?: string, colors?: string[], opacity?: number, dark?: boolean) => void;
 };
 
 const WallpaperTile: FC<OwnProps> = ({
   wallpaper,
+  colors,
+  opacity,
+  dark,
   theme,
   isSelected,
   onClick,
 }) => {
   const { slug, document } = wallpaper;
-  const localMediaHash = `wallpaper${document.id!}`;
-  const localBlobUrl = document.previewBlobUrl;
+  const localMediaHash = `wallpaper${document!.id!}`;
+  const localBlobUrl = document!.previewBlobUrl;
   const previewBlobUrl = useMedia(`${localMediaHash}?size=m`);
-  const thumbRef = useCanvasBlur(document.thumbnail?.dataUri, Boolean(previewBlobUrl), true);
+  const thumbRef = useCanvasBlur(document!.thumbnail?.dataUri, Boolean(previewBlobUrl), true);
   const { transitionClassNames } = useShowTransitionDeprecated(
     Boolean(previewBlobUrl || localBlobUrl),
     undefined,
@@ -67,9 +74,9 @@ const WallpaperTile: FC<OwnProps> = ({
     (async () => {
       const blob = await fetchBlob(fullMedia!);
       await cacheApi.save(CUSTOM_BG_CACHE_NAME, cacheKeyRef.current!, blob);
-      onClick(slug);
+      onClick(slug, colors && colors.split(',') || undefined, opacity, dark);
     })();
-  }, [fullMedia, onClick, slug]);
+  }, [fullMedia, onClick, slug, colors]);
 
   useEffect(() => {
     // If we've clicked on a wallpaper, select it when full media is loaded
@@ -91,11 +98,14 @@ const WallpaperTile: FC<OwnProps> = ({
   const className = buildClassName(
     'WallpaperTile',
     isSelected && 'selected',
+    colors && 'gradient',
+    dark && 'dark',
   );
 
   return (
-    <div className={className} onClick={handleClick}>
+    <div className={className} onClick={handleClick} style={`--pattern-opacity: ${opacity};` + ((previewBlobUrl || localBlobUrl) ? `--custom-background: url(${previewBlobUrl || localBlobUrl});` : '')}>
       <div className="media-inner">
+        {colors && <GradientWallpaper colors={colors} dark={dark} />}
         <canvas
           ref={thumbRef}
           className="thumbnail"

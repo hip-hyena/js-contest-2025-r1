@@ -1,6 +1,6 @@
 import type { FC } from '../../../../lib/teact/teact';
 import React, {
-  memo, useCallback, useEffect, useMemo, useState,
+  memo, useCallback, useEffect, useMemo, useState, useRef,
 } from '../../../../lib/teact/teact';
 import { getActions, getGlobal, withGlobal } from '../../../../global';
 
@@ -12,12 +12,13 @@ import type {
 
 import { STICKER_SIZE_FOLDER_SETTINGS } from '../../../../config';
 import { isUserId } from '../../../../global/helpers';
-import { selectCanShareFolder } from '../../../../global/selectors';
+import { selectCanShareFolder, selectIsCurrentUserPremium } from '../../../../global/selectors';
 import { selectCurrentLimit } from '../../../../global/selectors/limits';
 import { findIntersectionWithSet } from '../../../../util/iteratees';
 import { MEMO_EMPTY_ARRAY } from '../../../../util/memo';
 import { CUSTOM_PEER_EXCLUDED_CHAT_TYPES, CUSTOM_PEER_INCLUDED_CHAT_TYPES } from '../../../../util/objects/customPeer';
 import { LOCAL_TGS_URLS } from '../../../common/helpers/animatedAssets';
+import buildClassName from '../../../../util/buildClassName';
 
 import { selectChatFilters } from '../../../../hooks/reducers/useFoldersReducer';
 import useHistoryBack from '../../../../hooks/useHistoryBack';
@@ -31,6 +32,16 @@ import FloatingActionButton from '../../../ui/FloatingActionButton';
 import InputText from '../../../ui/InputText';
 import ListItem from '../../../ui/ListItem';
 import Spinner from '../../../ui/Spinner';
+import ResponsiveHoverButton from '../../../ui/ResponsiveHoverButton';
+import CustomEmojiPicker from '../../../common/CustomEmojiPicker';
+import Menu from '../../../ui/Menu';
+import Portal from '../../../ui/Portal';
+import { FOLDER_ICONS } from '../../../left/main/ChatFolders';
+import { IS_EMOJI_SUPPORTED } from '../../../../util/windowEnvironment';
+import { handleEmojiLoad, LOADED_EMOJIS, nativeToUnifiedExtendedWithCache } from '../../../../util/emoji/emoji';
+import { BASE_URL, IS_PACKAGED_ELECTRON } from '../../../../config';
+import CustomEmoji from '../../../common/CustomEmoji';
+import useLastCallback from '../../../../hooks/useLastCallback';
 
 type OwnProps = {
   state: FoldersState;
@@ -54,6 +65,8 @@ type StateProps = {
   maxInviteLinks: number;
   maxChatLists: number;
   chatListCount: number;
+  currentUserId?: string;
+  isCurrentUserPremium: boolean;
 };
 
 const SUBMIT_TIMEOUT = 500;
@@ -82,6 +95,8 @@ const SettingsFoldersEdit: FC<OwnProps & StateProps> = ({
   maxChatLists,
   chatListCount,
   onSaveFolder,
+  currentUserId,
+  isCurrentUserPremium,
 }) => {
   const {
     loadChatlistInvites,
@@ -95,6 +110,10 @@ const SettingsFoldersEdit: FC<OwnProps & StateProps> = ({
   const [isIncludedChatsListExpanded, setIsIncludedChatsListExpanded] = useState(false);
   const [isExcludedChatsListExpanded, setIsExcludedChatsListExpanded] = useState(false);
 
+  const [isIconMenuOpen, setIsIconMenuOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
+  const inputRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (isRemoved) {
       onReset();
@@ -279,6 +298,46 @@ const SettingsFoldersEdit: FC<OwnProps & StateProps> = ({
     );
   }
 
+  /* TODO: This function is copied from Composer.tsx, it should be moved to a separate hook */
+  const customEmojiNotificationNumber = useRef(0);
+  const showCustomEmojiPremiumNotification = useLastCallback(() => {
+    const notificationNumber = customEmojiNotificationNumber.current;
+    if (!notificationNumber) {
+      showNotification({
+        message: lang('UnlockPremiumEmojiHint'),
+        action: {
+          action: 'openPremiumModal',
+          payload: { initialSection: 'animated_emoji' },
+        },
+        actionText: lang('PremiumMore'),
+      });
+    } else {
+      showNotification({
+        message: lang('UnlockPremiumEmojiHint2'),
+        action: {
+          action: 'openChat',
+          payload: { id: currentUserId, shouldReplaceHistory: true },
+        },
+        actionText: lang('Open'),
+      });
+    }
+    customEmojiNotificationNumber.current = Number(!notificationNumber);
+  });
+
+  let code, src, isLoaded;
+  if (state.folder.emoticon && !(state.folder.emoticon in FOLDER_ICONS)) {
+    code = nativeToUnifiedExtendedWithCache(state.folder.emoticon);
+    src = `${IS_PACKAGED_ELECTRON ? BASE_URL : '.'}/img-apple-64/${code}.png`;
+    isLoaded = LOADED_EMOJIS.has(src);
+  }
+
+  let title = state.folder.title.text;
+  let customEmoji = undefined;
+  if (state.folder.title.entities?.length && state.folder.title.entities[0].type === 'MessageEntityCustomEmoji' && state.folder.title.entities[0].offset === 0) {
+    title = state.folder.title.text.slice(state.folder.title.entities[0].length + 1);
+    customEmoji = state.folder.title.entities[0].documentId;
+  }
+
   return (
     <div className="settings-fab-wrapper">
       <div className="settings-content no-border custom-scroll">
@@ -296,13 +355,83 @@ const SettingsFoldersEdit: FC<OwnProps & StateProps> = ({
             </p>
           )}
 
-          <InputText
-            className="mb-0"
-            label={lang('FilterNameHint')}
-            value={state.folder.title.text}
-            onChange={handleChange}
-            error={state.error && state.error === ERROR_NO_TITLE ? ERROR_NO_TITLE : undefined}
-          />
+          <div className="settings-folders-name" ref={inputRef}>
+            <InputText
+              className="mb-0"
+              label={lang('FilterNameHint')}
+              value={title}
+              onChange={handleChange}
+              error={state.error && state.error === ERROR_NO_TITLE ? ERROR_NO_TITLE : undefined}
+            />
+
+            <ResponsiveHoverButton
+              className={buildClassName('settings-folders-icon', false && 'activated')}
+              round
+              color="translucent"
+              onActivate={() => {
+                const input = inputRef.current;
+                if (!input) return;
+                const rect = input.getBoundingClientRect();
+                setMenuPosition({ x: 0, y: rect.bottom });
+                setIsIconMenuOpen(true);
+              }}
+              ariaLabel="Select folder icon"
+            >
+              {customEmoji && (
+                <CustomEmoji documentId={customEmoji} size={32} noPlay />
+              )}
+              {!customEmoji && (!state.folder.emoticon || state.folder.emoticon in FOLDER_ICONS) && (
+                <Icon name={FOLDER_ICONS[state.folder.emoticon!] || 'folder-default'} />
+              )}
+              {!customEmoji && state.folder.emoticon && !(state.folder.emoticon in FOLDER_ICONS) && (
+                <img
+                  src={src}
+                  className={!isLoaded ? 'opacity-transition shown' : undefined}
+                  alt={state.folder.emoticon}
+                  loading="lazy"
+                  data-path={src}
+                  onLoad={!isLoaded ? handleEmojiLoad : undefined}
+                  draggable={false}
+                />
+              )}
+            </ResponsiveHoverButton>
+            <Menu
+              ref={menuRef}
+              className="SettingsFoldersIconMenu"
+              isOpen={isIconMenuOpen}
+              noCompact
+              withPortal
+              anchor={menuPosition}
+              getTriggerElement={() => inputRef.current}
+              getRootElement={() => document.body}
+              getMenuElement={() => menuRef.current}
+              getLayout={() => ({ withPortal: true })}
+              onClose={() => setIsIconMenuOpen(false)}
+            >
+              <CustomEmojiPicker
+                idPrefix="settings-folders-icon-"
+                isHidden={!isIconMenuOpen}
+                loadAndPlay={isIconMenuOpen}
+                withFolderIcons
+                withEmojiSearch
+                withSimpleEmojis
+                noRecent
+                selectedReactionIds={[customEmoji || state.folder.emoticon || '📁']}
+                onCustomEmojiSelect={(emoji) => {
+                  if (!emoji.isFree && !isCurrentUserPremium) {
+                    showCustomEmojiPremiumNotification();
+                    return;
+                  }
+                  setIsIconMenuOpen(false);
+                  dispatch({ type: 'setCustomEmoji', payload: emoji });
+                }}
+                onSimpleEmojiSelect={(emoji) => {
+                  setIsIconMenuOpen(false);
+                  dispatch({ type: 'setEmoticon', payload: emoji });
+                }}
+              />
+            </Menu>
+          </div>
         </div>
 
         {!isOnlyInvites && (
@@ -399,6 +528,8 @@ export default memo(withGlobal<OwnProps>(
     const { listIds } = global.chats;
     const { byId, invites } = global.chatFolders;
     const chatListCount = Object.values(byId).reduce((acc, el) => acc + (el.isChatList ? 1 : 0), 0);
+    const { currentUserId } = global;
+    const isCurrentUserPremium = selectIsCurrentUserPremium(global);
 
     return {
       loadedActiveChatIds: listIds.active,
@@ -408,6 +539,8 @@ export default memo(withGlobal<OwnProps>(
       maxInviteLinks: selectCurrentLimit(global, 'chatlistInvites'),
       maxChatLists: selectCurrentLimit(global, 'chatlistJoined'),
       chatListCount,
+      currentUserId,
+      isCurrentUserPremium,
     };
   },
 )(SettingsFoldersEdit));

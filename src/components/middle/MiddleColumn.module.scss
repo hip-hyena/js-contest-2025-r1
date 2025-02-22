@@ -33,6 +33,33 @@
     transform: scale(1.1);
   }
 
+  &.gradient::before {
+    transform: scale(1);
+    transition: none !important;
+    background-size: auto;
+    background-repeat: repeat;
+    mix-blend-mode: overlay;
+    opacity: var(--pattern-opacity);
+    z-index: 1;
+  }
+
+  &.dark {
+    background: rgb(20, 20, 20);
+
+    &.gradient::before {
+      display: none;
+    }
+    &:not(.gradient)::before {
+      opacity: var(--pattern-opacity);
+    }
+
+    :global(.GradientWallpaper-canvas) {
+      mask-position: center;
+      mask-image: var(--custom-background);
+      opacity: var(--pattern-opacity);
+    }
+  }
+
   :global(body:not(.no-page-transitions)) &.withTransition {
     transition: background-color 0.2s;
 

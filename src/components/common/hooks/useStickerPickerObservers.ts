@@ -87,14 +87,14 @@ export function useStickerPickerObservers(
     }
   }, [freezeForSet, freezeForShowingItems, isHidden, unfreezeForSet, unfreezeForShowingItems]);
 
-  const selectStickerSet = useLastCallback((index: number) => {
+  const selectStickerSet = useLastCallback((index: number, scrollToTop?: boolean) => {
     setActiveSetIndex((currentIndex) => {
       const stickerSetEl = document.getElementById(`${idPrefix}-${index}`)!;
       const isClose = Math.abs(currentIndex - index) === 1;
 
       animateScroll({
         container: containerRef.current!,
-        element: stickerSetEl,
+        element: scrollToTop ? containerRef.current!.firstChild! as HTMLElement : stickerSetEl,
         position: 'start',
         margin: FOCUS_MARGIN,
         maxDistance: isClose ? SCROLL_MAX_DISTANCE_WHEN_CLOSE : SCROLL_MAX_DISTANCE_WHEN_FAR,
@@ -106,6 +106,7 @@ export function useStickerPickerObservers(
 
   return {
     activeSetIndex,
+    setActiveSetIndex,
     observeIntersectionForSet,
     observeIntersectionForShowingItems,
     observeIntersectionForPlayingItems,

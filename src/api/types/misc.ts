@@ -63,8 +63,11 @@ export interface ApiAttachment {
 }
 
 export interface ApiWallpaper {
-  slug: string;
-  document: ApiDocument;
+  slug?: string;
+  document?: ApiDocument;
+  colors?: string[];
+  opacity?: number;
+  dark?: boolean;
 }
 
 export interface ApiSession {

@@ -10,7 +10,7 @@ import { SettingsScreens, UPLOADING_WALLPAPER_SLUG } from '../../../types';
 
 import { DARK_THEME_PATTERN_COLOR, DEFAULT_PATTERN_COLOR } from '../../../config';
 import { selectTheme } from '../../../global/selectors';
-import { getAverageColor, getPatternColor, rgb2hex } from '../../../util/colors';
+import { getAverageColor, getPatternColor, hex2rgb, rgb2hex } from '../../../util/colors';
 import { validateFiles } from '../../../util/files';
 import { throttle } from '../../../util/schedulers';
 import { openSystemFilesDialog } from '../../../util/systemFilesDialog';
@@ -22,8 +22,11 @@ import Checkbox from '../../ui/Checkbox';
 import ListItem from '../../ui/ListItem';
 import Loading from '../../ui/Loading';
 import WallpaperTile from './WallpaperTile';
+import buildClassName from '../../../util/buildClassName';
 
 import './SettingsGeneralBackground.scss';
+import GradientWallpaper from '../../common/GradientWallpaper';
+import { hexToRgb } from '../../../util/switchTheme';
 
 type OwnProps = {
   isActive?: boolean;
@@ -33,7 +36,9 @@ type OwnProps = {
 
 type StateProps = {
   background?: string;
+  gradientColors?: string[];
   isBlurred?: boolean;
+  isDark?: boolean;
   loadedWallpapers?: ApiWallpaper[];
   theme: ThemeKey;
 };
@@ -47,7 +52,9 @@ const SettingsGeneralBackground: FC<OwnProps & StateProps> = ({
   onScreenSelect,
   onReset,
   background,
+  gradientColors,
   isBlurred,
+  isDark,
   loadedWallpapers,
   theme,
 }) => {
@@ -90,22 +97,50 @@ const SettingsGeneralBackground: FC<OwnProps & StateProps> = ({
       background: undefined,
       backgroundColor: undefined,
       isBlurred: true,
+      isDark: false,
       patternColor: theme === 'dark' ? DARK_THEME_PATTERN_COLOR : DEFAULT_PATTERN_COLOR,
+      gradientColors: undefined,
     });
   }, [setThemeSettings, theme]);
 
-  const handleWallPaperSelect = useCallback((slug: string) => {
-    setThemeSettings({ theme: themeRef.current!, background: slug });
-    const currentWallpaper = loadedWallpapers && loadedWallpapers.find((wallpaper) => wallpaper.slug === slug);
-    if (currentWallpaper?.document.thumbnail) {
-      getAverageColor(currentWallpaper.document.thumbnail.dataUri)
-        .then((color) => {
-          const patternColor = getPatternColor(color);
-          const rgbColor = `#${rgb2hex(color)}`;
-          setThemeSettings({ theme: themeRef.current!, backgroundColor: rgbColor, patternColor });
-        });
+  const handleWallpaperSelect = useCallback((slug?: string, colors?: string[], opacity?: number, dark?: boolean) => {
+    let avgColor: [number, number, number] | undefined;
+    if (colors) {
+      avgColor = [0, 0, 0];
+      for (const color of colors) {
+        const rgb = hexToRgb(color);
+        avgColor[0] += rgb.r;
+        avgColor[1] += rgb.g;
+        avgColor[2] += rgb.b;
+      }
+      avgColor[0] = Math.round(avgColor[0] / colors.length);
+      avgColor[1] = Math.round(avgColor[1] / colors.length);
+      avgColor[2] = Math.round(avgColor[2] / colors.length);
     }
-  }, [loadedWallpapers, setThemeSettings]);
+    setThemeSettings({
+      theme: themeRef.current!,
+      background: slug || undefined,
+      gradientColors: colors || undefined,
+      patternOpacity: opacity,
+      isDark: dark,
+      ...(avgColor && {
+        backgroundColor: `#${rgb2hex(avgColor)}`,
+        patternColor: getPatternColor(avgColor),
+        isBlurred: true,
+      }),
+    });
+    if (slug) {
+      const currentWallpaper = loadedWallpapers && loadedWallpapers.find((wallpaper) => wallpaper.slug === slug);
+      if (currentWallpaper?.document?.thumbnail) {
+        getAverageColor(currentWallpaper.document.thumbnail.dataUri)
+          .then((color) => {
+            const patternColor = getPatternColor(color);
+            const rgbColor = `#${rgb2hex(color)}`;
+            setThemeSettings({ theme: themeRef.current!, backgroundColor: rgbColor, patternColor });
+          });
+      }
+    }
+  }, [setThemeSettings, loadedWallpapers]);
 
   const handleWallPaperBlurChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setThemeSettings({ theme: themeRef.current!, isBlurred: e.target.checked });
@@ -147,21 +182,34 @@ const SettingsGeneralBackground: FC<OwnProps & StateProps> = ({
         <Checkbox
           label={lang('BackgroundBlurred')}
           checked={Boolean(isBlurred)}
+          disabled={!background}
           onChange={handleWallPaperBlurChange}
         />
       </div>
 
       {loadedWallpapers ? (
         <div className="settings-wallpapers">
-          {loadedWallpapers.map((wallpaper) => (
-            <WallpaperTile
+          {loadedWallpapers.map((wallpaper) => {
+            return wallpaper.document ? (<WallpaperTile
               key={wallpaper.slug}
               wallpaper={wallpaper}
+              colors={wallpaper.colors && wallpaper.colors!.join(',')}
+              opacity={wallpaper.opacity}
+              dark={wallpaper.dark}
               theme={theme}
               isSelected={background === wallpaper.slug}
-              onClick={handleWallPaperSelect}
-            />
-          ))}
+              onClick={handleWallpaperSelect}
+            />) : (<div
+              className={buildClassName('WallpaperTile', !background && gradientColors && gradientColors.join(',') === wallpaper.colors!.join(',') && 'selected')}
+              onClick={() => handleWallpaperSelect(undefined, wallpaper.colors!, wallpaper.opacity, wallpaper.dark)}
+            ><GradientWallpaper
+              key={wallpaper.colors!.join(',')}
+              className="media-inner"
+              colors={wallpaper.colors!.join(',')}
+              opacity={wallpaper.opacity}
+              dark={wallpaper.dark}
+            /></div>);
+          })}
         </div>
       ) : (
         <Loading />
@@ -173,12 +221,14 @@ const SettingsGeneralBackground: FC<OwnProps & StateProps> = ({
 export default memo(withGlobal<OwnProps>(
   (global): StateProps => {
     const theme = selectTheme(global);
-    const { background, isBlurred } = global.settings.themes[theme] || {};
+    const { background, isDark, isBlurred, gradientColors } = global.settings.themes[theme] || {};
     const { loadedWallpapers } = global.settings;
 
     return {
       background,
       isBlurred,
+      isDark,
+      gradientColors,
       loadedWallpapers,
       theme,
     };

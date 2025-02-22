@@ -650,10 +650,10 @@ function processEntityAsHtml(
     case ApiMessageEntityTypes.CustomEmoji:
       return buildCustomEmojiHtmlFromEntity(rawEntityText, entity);
     case ApiMessageEntityTypes.Blockquote:
-      return `<blockquote
+      return `<span class="pre-quote"></span><blockquote
         class="blockquote"
         data-entity-type="${ApiMessageEntityTypes.Blockquote}"
-        >${renderedContent}</blockquote>`;
+        >${renderedContent}</blockquote><span class="post-quote"></span>`;
     default:
       return renderedContent;
   }

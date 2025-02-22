@@ -17,12 +17,17 @@ import Icon from '../common/icons/Icon';
 import Menu from './Menu';
 import MenuItem from './MenuItem';
 import MenuSeparator from './MenuSeparator';
-
+import { IconName } from '../../types/icons';
 import './Tab.scss';
+import CustomEmoji from '../common/CustomEmoji';
 
 type OwnProps = {
   className?: string;
   title: TeactNode;
+  icon?: IconName;
+  emoji?: string;
+  customEmoji?: string;
+  noCustomEmojiPlayback?: boolean;
   isActive?: boolean;
   isBlocked?: boolean;
   badgeCount?: number;
@@ -42,6 +47,10 @@ const classNames = {
 const Tab: FC<OwnProps> = ({
   className,
   title,
+  icon,
+  emoji,
+  customEmoji,
+  noCustomEmojiPlayback,
   isActive,
   isBlocked,
   badgeCount,
@@ -140,6 +149,9 @@ const Tab: FC<OwnProps> = ({
       ref={tabRef}
     >
       <span className="Tab_inner">
+        {customEmoji && <CustomEmoji className="Tab-custom-emoji" documentId={customEmoji} size={36} noPlay={noCustomEmojiPlayback} />}
+        {icon && !customEmoji && <Icon name={icon} className="Tab-icon" />}
+        {emoji && !customEmoji && !icon && <span className="Tab-emoji">{emoji}</span>}
         {typeof title === 'string' ? renderText(title) : title}
         {Boolean(badgeCount) && (
           <span className={buildClassName('badge', isBadgeActive && classNames.badgeActive)}>{badgeCount}</span>

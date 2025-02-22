@@ -24,6 +24,7 @@ const MOBILE_CONTAINER_PADDING = 0.5 * REM;
 type OwnProps = {
   category: EmojiCategory;
   index: number;
+  selectedEmojis?: string[];
   allEmojis: AllEmojis;
   observeIntersection: ObserveFn;
   shouldRender: boolean;
@@ -31,7 +32,7 @@ type OwnProps = {
 };
 
 const EmojiCategory: FC<OwnProps> = ({
-  category, index, allEmojis, observeIntersection, shouldRender, onEmojiSelect,
+  category, index, selectedEmojis, allEmojis, observeIntersection, shouldRender, onEmojiSelect,
 }) => {
   // eslint-disable-next-line no-null/no-null
   const ref = useRef<HTMLDivElement>(null);
@@ -82,6 +83,7 @@ const EmojiCategory: FC<OwnProps> = ({
             <EmojiButton
               key={displayedEmoji.id}
               emoji={displayedEmoji}
+              focus={selectedEmojis && selectedEmojis.includes(displayedEmoji.native)}
               onClick={onEmojiSelect}
             />
           );

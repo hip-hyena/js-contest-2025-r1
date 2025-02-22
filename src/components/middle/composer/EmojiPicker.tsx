@@ -45,7 +45,7 @@ type OwnProps = {
 
 type StateProps = Pick<GlobalState, 'recentEmojis'>;
 
-type EmojiCategoryData = { id: string; name: string; emojis: string[] };
+export type EmojiCategoryData = { id: string; name: string; emojis: string[] };
 
 const ICONS_BY_CATEGORY: Record<string, IconName> = {
   recent: 'recent',
@@ -67,7 +67,7 @@ const INTERSECTION_THROTTLE = 200;
 
 const categoryIntersections: boolean[] = [];
 
-let emojiDataPromise: Promise<EmojiModule>;
+let emojiDataPromise: Promise<EmojiData>;
 let emojiRawData: EmojiRawData;
 let emojiData: EmojiData;
 
@@ -251,12 +251,13 @@ const EmojiPicker: FC<OwnProps & StateProps> = ({
   );
 };
 
-async function ensureEmojiData() {
+export async function ensureEmojiData() {
   if (!emojiDataPromise) {
-    emojiDataPromise = import('emoji-data-ios/emoji-data.json');
-    emojiRawData = (await emojiDataPromise).default;
-
-    emojiData = uncompressEmoji(emojiRawData);
+    emojiDataPromise = import('emoji-data-ios/emoji-data.json').then((module) => {
+      emojiRawData = module.default;
+      emojiData = uncompressEmoji(emojiRawData);
+      return emojiData;
+    });
   }
 
   return emojiDataPromise;
