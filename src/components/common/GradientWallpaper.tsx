@@ -161,6 +161,12 @@ function prepareCanvas(gl: WebGLRenderingContext): Uniforms | null {
 }
 
 const [sharedCanvas, sharedGl, sharedUniforms] = createSharedCanvas();
+let rotateWallpapers: Function | null = null;
+addActionHandler('sendMessage', (): ActionReturnType => {
+  if (rotateWallpapers) {
+    rotateWallpapers();
+  }
+});
 
 const GradientWallpaper: FC<OwnProps> = ({
   colors,
@@ -246,16 +252,15 @@ const GradientWallpaper: FC<OwnProps> = ({
     }
   }
 
-  useEffect(() => {
-    rotateTargets();
-    updatePositions();
-  }, []);
+  rotateTargets();
+  updatePositions();
 
   if (rotateOnSend) {
-    addActionHandler('sendMessage', (global, actions, payload): ActionReturnType => {
+    const rotateWallpaper = () => {
       rotateTargets();
       if (!stateRef.current.animating) requestAnimationFrame(animate);
-    });
+    };
+    rotateWallpapers = rotateWallpaper;
   }
 
   useEffect(() => {
