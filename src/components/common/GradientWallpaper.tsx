@@ -221,7 +221,7 @@ const GradientWallpaper: FC<OwnProps> = ({
 
   function rotateTargets() {
     for (let i = 0; i < 4; i++) {
-      stateRef.current.targets[i] = KEY_POINTS[(stateRef.current.keyShift + i * 2) % KEY_POINTS.length];
+      stateRef.current.targets[i] = [...KEY_POINTS[(stateRef.current.keyShift + i * 2) % KEY_POINTS.length]];
     }
     stateRef.current.keyShift = (stateRef.current.keyShift + 1) % KEY_POINTS.length;
   }
@@ -246,15 +246,17 @@ const GradientWallpaper: FC<OwnProps> = ({
     }
   }
 
+  useEffect(() => {
+    rotateTargets();
+    updatePositions();
+  }, []);
+
   if (rotateOnSend) {
     addActionHandler('sendMessage', (global, actions, payload): ActionReturnType => {
       rotateTargets();
       if (!stateRef.current.animating) requestAnimationFrame(animate);
     });
   }
-
-  rotateTargets();
-  updatePositions();
 
   useEffect(() => {
     render();
