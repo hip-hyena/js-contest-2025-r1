@@ -45,6 +45,10 @@
     justify-content: center;
     background-color: var(--color-background);
     transition: 0.2s background-color ease-in-out;
+
+    @media (max-width: 600px) {
+      margin-left: -0.5rem;
+    }
   }
 
   .Button.smaller {
