@@ -80,6 +80,7 @@
       }
 
       .badge {
+        background-color: rgb(142,142,146); /* hardcoded because left column is always dark */
         position: absolute;
         top: 5px;
         right: 5px;
