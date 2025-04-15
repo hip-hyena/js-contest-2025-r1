@@ -26,7 +26,6 @@ import Button from '../../ui/Button';
 import Menu from '../../ui/Menu';
 import Portal from '../../ui/Portal';
 import Transition from '../../ui/Transition';
-import EmojiPicker from './EmojiPicker';
 import GifPicker from './GifPicker';
 import StickerPicker from './StickerPicker';
 import SymbolMenuFooter, { SYMBOL_MENU_TAB_TITLES, SymbolMenuTabs } from './SymbolMenuFooter';
@@ -196,13 +195,6 @@ const SymbolMenu: FC<OwnProps & StateProps> = ({
 
   function renderContent(isActive: boolean, isFrom: boolean) {
     switch (activeTab) {
-      case SymbolMenuTabs.Emoji:
-        return (
-          <EmojiPicker
-            className="picker-tab"
-            onEmojiSelect={handleEmojiSelect}
-          />
-        );
       case SymbolMenuTabs.CustomEmoji:
         return (
           <CustomEmojiPicker
@@ -212,6 +204,9 @@ const SymbolMenu: FC<OwnProps & StateProps> = ({
             loadAndPlay={isOpen && (isActive || isFrom)}
             chatId={chatId}
             isTranslucent={!isMobile && isBackgroundTranslucent}
+            withSimpleEmojis
+            withEmojiSearch
+            onSimpleEmojiSelect={handleEmojiSelect}
             onCustomEmojiSelect={handleCustomEmojiSelect}
           />
         );

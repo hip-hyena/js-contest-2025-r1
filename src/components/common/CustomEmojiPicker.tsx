@@ -77,7 +77,7 @@ type OwnProps = {
   isReactionPicker?: boolean;
   isTranslucent?: boolean;
   onCustomEmojiSelect: (sticker: ApiSticker) => void;
-  onSimpleEmojiSelect?: (emoji: string) => void;
+  onSimpleEmojiSelect?: (emoji: string, name: string) => void;
   onReactionSelect?: (reaction: ApiReactionWithPaid) => void;
   onReactionContext?: (reaction: ApiReactionWithPaid) => void;
   onContextMenuOpen?: NoneToVoidFunction;
@@ -418,8 +418,8 @@ const CustomEmojiPicker: FC<OwnProps & StateProps> = ({
     onCustomEmojiSelect(emoji);
   });
 
-  const handleSimpleEmojiSelect = useLastCallback((emoji: string) => {
-    onSimpleEmojiSelect && onSimpleEmojiSelect(emoji);
+  const handleSimpleEmojiSelect = useLastCallback((emoji: string, name: string) => {
+    onSimpleEmojiSelect && onSimpleEmojiSelect(emoji, name);
   });
 
   function renderCover(stickerSet: StickerSetOrReactionsSetOrRecent, index: number) {
@@ -567,7 +567,7 @@ const CustomEmojiPicker: FC<OwnProps & StateProps> = ({
                   'folder-icon-button',
                   'interactive',
                   selectedReactionIds && selectedReactionIds.includes(emoji) && 'focus'
-                )} key={icon} onClick={() => handleSimpleEmojiSelect(emoji)}>
+                )} key={icon} onClick={() => handleSimpleEmojiSelect(emoji, "")}>
                   <Icon name={icon} />
                 </div>
               );

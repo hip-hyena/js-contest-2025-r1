@@ -20,22 +20,19 @@ type OwnProps = {
 };
 
 export enum SymbolMenuTabs {
-  'Emoji',
   'CustomEmoji',
   'Stickers',
   'GIFs',
 }
 
 export const SYMBOL_MENU_TAB_TITLES: Record<SymbolMenuTabs, string> = {
-  [SymbolMenuTabs.Emoji]: 'Emoji',
   [SymbolMenuTabs.CustomEmoji]: 'StickersList.EmojiItem',
   [SymbolMenuTabs.Stickers]: 'AccDescrStickers',
   [SymbolMenuTabs.GIFs]: 'GifsTab',
 };
 
 const SYMBOL_MENU_TAB_ICONS = {
-  [SymbolMenuTabs.Emoji]: 'icon-smile',
-  [SymbolMenuTabs.CustomEmoji]: 'icon-favorite',
+  [SymbolMenuTabs.CustomEmoji]: 'icon-smile',
   [SymbolMenuTabs.Stickers]: 'icon-stickers',
   [SymbolMenuTabs.GIFs]: 'icon-gifs',
 };
@@ -72,10 +69,10 @@ const SymbolMenuFooter: FC<OwnProps> = ({
 
   return (
     <div className="SymbolMenu-footer" onClick={stopPropagation} dir={lang.isRtl ? 'rtl' : undefined}>
-      {activeTab !== SymbolMenuTabs.Emoji && activeTab !== SymbolMenuTabs.CustomEmoji && canSearch && (
+      {canSearch && (
         <Button
           className="symbol-search-button"
-          ariaLabel={activeTab === SymbolMenuTabs.Stickers ? 'Search Stickers' : 'Search GIFs'}
+          ariaLabel={activeTab === SymbolMenuTabs.CustomEmoji ? 'Search Emojis' : (activeTab === SymbolMenuTabs.Stickers ? 'Search Stickers' : 'Search GIFs')}
           round
           faded
           color="translucent"
@@ -85,12 +82,11 @@ const SymbolMenuFooter: FC<OwnProps> = ({
         </Button>
       )}
 
-      {canSendPlainText && renderTabButton(SymbolMenuTabs.Emoji)}
       {canSendPlainText && renderTabButton(SymbolMenuTabs.CustomEmoji)}
       {!isAttachmentModal && renderTabButton(SymbolMenuTabs.Stickers)}
       {!isAttachmentModal && renderTabButton(SymbolMenuTabs.GIFs)}
 
-      {(activeTab === SymbolMenuTabs.Emoji || activeTab === SymbolMenuTabs.CustomEmoji) && (
+      {(activeTab === SymbolMenuTabs.CustomEmoji) && (
         <Button
           className="symbol-delete-button"
           onClick={onRemoveSymbol}
