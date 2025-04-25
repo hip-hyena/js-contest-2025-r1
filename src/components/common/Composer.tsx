@@ -1368,7 +1368,8 @@ const Composer: FC<OwnProps & StateProps> = ({
       }
     }
 
-    setHtml(deleteLastCharacterOutsideSelection(getHtml()));
+    //setHtml(deleteLastCharacterOutsideSelection(getHtml()));
+    deleteLastCharacterOutsideSelection(inInputId);
   });
 
   const removeSymbolAttachmentModal = useLastCallback(() => {
@@ -1820,7 +1821,7 @@ const Composer: FC<OwnProps & StateProps> = ({
               onGifSelect={handleGifSelect}
               onStickerSelect={handleStickerSelect}
               onCustomEmojiSelect={handleCustomEmojiSelect}
-              onRemoveSymbol={removeSymbol}
+              onRemoveSymbol={() => removeSymbol()}
               onEmojiSelect={insertTextAndUpdateCursor}
               closeBotCommandMenu={closeBotCommandMenu}
               closeSendAsMenu={closeSendAsMenu}

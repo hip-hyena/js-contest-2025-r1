@@ -15,6 +15,7 @@ addActionHandler('setStickerSearchQuery', (global, actions, payload): ActionRetu
   }, tabId);
 });
 
+/*
 addActionHandler('setGifSearchQuery', (global, actions, payload): ActionReturnType => {
   const { query, tabId = getCurrentTabId() } = payload!;
 
@@ -27,3 +28,4 @@ addActionHandler('setGifSearchQuery', (global, actions, payload): ActionReturnTy
     },
   }, tabId);
 });
+*/

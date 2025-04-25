@@ -16,6 +16,7 @@
     column-gap: var(--symbol-set-gap-size, 0.625rem);
     text-align: initial;
     justify-content: space-between;
+    margin-bottom: 0.75rem;
   }
 
   :global(.folder-icon-button) {
@@ -62,6 +63,50 @@
     height: 2.2rem;
   }
 
+  :global(.emoji-search-results) {
+    margin-bottom: 0.75rem;
+  }
+
+  :global(.recent-button) {
+    display: inline-block;
+    margin: 0 0.125rem;
+  }
+  :global(.emoji-categories-button) {
+    display: inline-flex;
+    flex-direction: row;
+    gap: 0.35rem;
+    margin: 0 0.125rem;
+    padding: 0.225rem;
+    max-width: 36px;
+    border-radius: 9999px;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    &::-webkit-scrollbar {
+      display: none;
+    }
+    overflow: hidden;
+    transition: max-width 0.3s ease;
+  }
+  :global(.emoji-categories-button .Button.tiny.round:first-child) {
+    transform: scale(1.15);
+    transition: transform 0.3s ease;
+  }
+  :global(.emoji-categories-button .Button.tiny.round) {
+    width: 1.8rem;
+    height: 1.8rem;
+  }
+  :global(.emoji-categories-button.is-active) {
+    overflow-x: auto;
+    max-width: 160px;
+    background-color: var(--color-interactive-element-hover);
+  }
+  :global(.emoji-categories-button.is-active .Button.tiny.round:first-child) {
+    transform: scale(1);
+  }
+  :global(.emoji-categories-button .Button.tiny.round.is-active) {
+    background-color: var(--color-interactive-element-hover);
+    color: var(--color-text);
+  }
 }
 
 .activated {

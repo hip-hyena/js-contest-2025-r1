@@ -2,6 +2,7 @@ import type { RefObject } from 'react';
 import type { FC } from '../../lib/teact/teact';
 import React, {
   memo, useEffect, useRef,
+  useState,
 } from '../../lib/teact/teact';
 
 import buildClassName from '../../util/buildClassName';
@@ -11,6 +12,7 @@ import useInputFocusOnOpen from '../../hooks/useInputFocusOnOpen';
 import useLang from '../../hooks/useLang';
 import useLastCallback from '../../hooks/useLastCallback';
 import useOldLang from '../../hooks/useOldLang';
+import useHorizontalScroll from '../../hooks/useHorizontalScroll';
 
 import Icon from '../common/icons/Icon';
 import Button from './Button';
@@ -18,6 +20,7 @@ import Loading from './Loading';
 import Transition from './Transition';
 
 import './SearchInput.scss';
+import { IconName } from '../../types/icons';
 
 type OwnProps = {
   ref?: RefObject<HTMLInputElement>;
@@ -39,6 +42,8 @@ type OwnProps = {
   hasDownButton?: boolean;
   teactExperimentControlled?: boolean;
   withBackIcon?: boolean;
+  withEmojiCategories?: boolean;
+  emojiCategory?: string;
   onChange: (value: string) => void;
   onStartBackspace?: NoneToVoidFunction;
   onReset?: NoneToVoidFunction;
@@ -48,6 +53,7 @@ type OwnProps = {
   onUpClick?: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onDownClick?: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onSpinnerClick?: NoneToVoidFunction;
+  onEmojiCategoryClick?: (category: string) => void;
 };
 
 const SearchInput: FC<OwnProps> = ({
@@ -70,6 +76,8 @@ const SearchInput: FC<OwnProps> = ({
   hasDownButton,
   teactExperimentControlled,
   withBackIcon,
+  withEmojiCategories,
+  emojiCategory,
   onChange,
   onStartBackspace,
   onReset,
@@ -79,12 +87,17 @@ const SearchInput: FC<OwnProps> = ({
   onUpClick,
   onDownClick,
   onSpinnerClick,
+  onEmojiCategoryClick,
 }) => {
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const inputScrollableRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line no-null/no-null
   let inputRef = useRef<HTMLInputElement>(null);
   if (ref) {
     inputRef = ref;
   }
+
+  const [scrollPosition, setScrollPosition] = useState(0);
 
   const [isInputFocused, markInputFocused, unmarkInputFocused] = useFlag(focused);
 
@@ -138,10 +151,24 @@ const SearchInput: FC<OwnProps> = ({
     }
   });
 
+  const handleScroll = useLastCallback((e: React.UIEvent<HTMLDivElement>) => {
+    if (withEmojiCategories) {
+      const element = e.currentTarget;
+      const space = (wrapperRef.current?.clientWidth || 370) / 2 - 150;
+      setScrollPosition(Math.max(0, element.scrollLeft - space));
+    }
+  });
+
+  const emojiCategories = ['heart', 'like', 'dislike', 'party', 'haha', 'omg', 'sad', 'angry', 'neutral', 'what', 'tongue'];
+  useHorizontalScroll(inputScrollableRef, false, true, true);
+
+
   return (
     <div
-      className={buildClassName('SearchInput', className, isInputFocused && 'has-focus')}
+      ref={wrapperRef}
+      className={buildClassName('SearchInput', className, isInputFocused && 'has-focus', withEmojiCategories && 'with-emoji-categories')}
       onClick={onClick}
+      style={`--scroll-pos: ${scrollPosition}`}
       dir={oldLang.isRtl ? 'rtl' : undefined}
     >
       <Transition
@@ -160,22 +187,42 @@ const SearchInput: FC<OwnProps> = ({
         )}
       </Transition>
       <div>{children}</div>
-      <input
-        ref={inputRef}
-        id={inputId}
-        type="text"
-        dir="auto"
-        placeholder={placeholder || oldLang('Search')}
-        className="form-control"
-        value={value}
-        disabled={disabled}
-        autoComplete={autoComplete}
-        onChange={handleChange}
-        onFocus={handleFocus}
-        onBlur={handleBlur}
-        onKeyDown={handleKeyDown}
-        teactExperimentControlled={teactExperimentControlled}
-      />
+      <div ref={inputScrollableRef}
+        className="input-scrollable"
+        onScroll={handleScroll}>
+        <input
+          ref={inputRef}
+          id={inputId}
+          type="text"
+          dir="auto"
+          placeholder={placeholder || oldLang('Search')}
+          className="form-control"
+          value={value}
+          disabled={disabled}
+          autoComplete={autoComplete}
+          onChange={handleChange}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
+          onKeyDown={handleKeyDown}
+          teactExperimentControlled={teactExperimentControlled}
+        />
+        {withEmojiCategories && (
+          <div className="emoji-categories">
+            {emojiCategories.map((category) => (
+              <Button
+                key={category}
+                round
+                size="tiny"
+                color="translucent"
+                className={emojiCategory === category ? 'is-active' : ''}
+                onClick={() => onEmojiCategoryClick?.(emojiCategory === category ? '' : category)}
+              >
+                <Icon name={`emoji-${category}` as IconName} />
+              </Button>
+            ))}
+          </div>
+        )}
+      </div>
       {hasUpButton && (
         <Button
           round

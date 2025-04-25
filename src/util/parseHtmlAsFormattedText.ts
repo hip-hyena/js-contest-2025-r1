@@ -240,7 +240,7 @@ export default function parseHtmlAsFormattedText(
           if (prev.type === token.type && prev.open && mid !== -1) {
             let url = '';
             for (let k = stack[mid] + 1; k < i; k++) {
-              url += url + (tokens[stack[k]].text || '');
+              url += url + (tokens[k].text || '');
             }
             
             if (RE_CUSTOM_EMOJI.test(url) || RE_LINK.test(url)) {

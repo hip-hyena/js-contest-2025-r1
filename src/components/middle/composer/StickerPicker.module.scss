@@ -1,7 +1,7 @@
 @use "../../../styles/mixins";
 
 .root {
-  --color-primary: var(--color-text);
+  /*--color-primary: var(--color-text);*/
   --emoji-size: 4.5rem;
 
   height: 100%;
@@ -20,12 +20,12 @@
   overflow-y: auto;
   overflow-x: hidden;
 
-  padding: 0.5rem 0.25rem;
+  padding: 0 0.5rem 0.5rem;
 
-  @include mixins.adapt-padding-to-scrollbar(0.25rem);
+  @include mixins.adapt-padding-to-scrollbar(0.5rem);
 
   &_customEmoji {
-    padding: 0.5rem 0.75rem;
+    padding: 0 0.5rem 0.75rem;
 
     @include mixins.adapt-padding-to-scrollbar(0.75rem);
   }
@@ -69,12 +69,18 @@
 
   // Allows `shared-canvas` to fill the whole available width
   & > :global(.shared-canvas-container) {
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    height: 100%;
   }
 
   :global(.shared-canvas) {
     max-width: 1280px; // STICKER_PICKER_MAX_SHARED_COVERS * (STICKER_SIZE_PICKER_HEADER + 10 * 2)
     z-index: 1;
+    transition: max-width 0.3s ease;
+  }
+  :global(.shared-canvas.is-adjusted) {
+    max-width: 1281px;
   }
 }
 

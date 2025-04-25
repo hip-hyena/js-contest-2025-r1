@@ -413,9 +413,8 @@ const MessageInput: FC<OwnProps & StateProps> = ({
           lastNode = lastNode.previousSibling;
         }
   
+        e.preventDefault();
         if (brCount >= 3) {
-          e.preventDefault();
-          
           // Remove the last two <br> elements
           for (let i = 0; i < 3; i++) {
             blockquote.lastChild && blockquote.removeChild(blockquote.lastChild);
@@ -431,11 +430,11 @@ const MessageInput: FC<OwnProps & StateProps> = ({
           newRange.collapse(true);
           selection.removeAllRanges();
           selection.addRange(newRange);
-  
-          // Ensure the input is updated
-          handleChange({ currentTarget: inputRef.current! } as React.ChangeEvent<HTMLDivElement>);
-          return;
+        } else {
+          document.execCommand('insertLineBreak');
         }
+        handleChange({ currentTarget: inputRef.current! } as React.ChangeEvent<HTMLDivElement>);
+        return;
       }
     }
 

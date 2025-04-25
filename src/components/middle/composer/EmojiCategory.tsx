@@ -22,6 +22,7 @@ const EMOJI_VERTICAL_MARGIN_MOBILE = 0.5 * REM;
 const MOBILE_CONTAINER_PADDING = 0.5 * REM;
 
 type OwnProps = {
+  id?: string;
   category: EmojiCategory;
   index: number;
   selectedEmojis?: string[];
@@ -32,7 +33,7 @@ type OwnProps = {
 };
 
 const EmojiCategory: FC<OwnProps> = ({
-  category, index, selectedEmojis, allEmojis, observeIntersection, shouldRender, onEmojiSelect,
+  id,category, index, selectedEmojis, allEmojis, observeIntersection, shouldRender, onEmojiSelect,
 }) => {
   // eslint-disable-next-line no-null/no-null
   const ref = useRef<HTMLDivElement>(null);
@@ -56,13 +57,15 @@ const EmojiCategory: FC<OwnProps> = ({
     <div
       ref={ref}
       key={category.id}
-      id={`emoji-category-${index}`}
+      id={id ? id : `emoji-category-${index}`}
       className="symbol-set"
     >
       <div className="symbol-set-header">
-        <p className="symbol-set-name" dir="auto">
-          {lang(category.id === RECENT_SYMBOL_SET_ID ? 'RecentStickers' : `Emoji${index}`)}
-        </p>
+        <div className="symbol-set-title">
+          <div className="symbol-set-name" dir="auto">
+            {lang(category.id === RECENT_SYMBOL_SET_ID ? 'RecentStickers' : `Emoji${index}`)}
+          </div>
+        </div>
       </div>
       <div
         className={buildClassName('symbol-set-container', transitionClassNames)}

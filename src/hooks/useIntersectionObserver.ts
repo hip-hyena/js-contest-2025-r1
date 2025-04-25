@@ -178,6 +178,10 @@ export function useIntersectionObserver({
       initController();
     }
 
+    if (!(target instanceof HTMLElement)) {
+      return () => {};
+    }
+
     const controller = controllerRef.current!;
     controller.observer.observe(target);
 

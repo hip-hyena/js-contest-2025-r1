@@ -1,9 +1,11 @@
 .SearchInput {
+  --search-background: var(--color-chat-hover);
+  --search-background-focused: var(--color-background);
   position: relative;
   width: 100%;
   color: rgba(var(--color-text-secondary-rgb), 0.5);
-  background-color: var(--color-chat-hover);
-  border: 2px solid var(--color-chat-hover);
+  background-color: var(--search-background);
+  border: 2px solid var(--search-background);
   border-radius: 1.375rem;
   transition: border-color 0.15s ease;
   display: flex;
@@ -31,12 +33,63 @@
   }
 
   &.has-focus {
-    border-color: var(--color-primary);
+    border-color: var(--color-primary) !important;
     caret-color: var(--color-primary);
-    background-color: var(--color-background);
+    background-color: var(--search-background-focused);
 
     .search-icon {
       color: var(--color-primary);
+    }
+
+    /*&.with-emoji-categories .icon-container-left {
+      background: linear-gradient(90deg, var(--search-background-focused) 2rem, transparent 100%);
+    }*/
+  }
+
+  .input-scrollable {
+    flex: 1;
+  }
+
+  &.with-emoji-categories {
+    display: flex;
+
+    .input-scrollable {
+      display: flex;
+      align-items: center;
+      
+      overflow-x: auto;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+
+      margin-inline-start: -0.5rem;
+      padding-inline-start: 0.5rem;
+      mask-image: linear-gradient(to right, transparent, black 0.5rem, black 100%);
+
+      &::-webkit-scrollbar {
+        display: none;
+      }
+    }
+    
+    .icon-container-left {
+      left: 0;
+      width: 2.5rem;
+      /*height: 2.25rem;*/
+      margin-inline-start: 0 !important;
+      margin-inline-end: 0 !important;
+      /*background: linear-gradient(90deg, var(--search-background) 2rem, transparent 100%);*/
+      z-index: 1;
+    }
+    input {
+      position: sticky;
+      width: calc(50% - 1.25rem);
+      flex-shrink: 0;
+      left: 0;
+      transform: translateX(calc(var(--scroll-pos) * -1px));
+      opacity: calc(1 - var(--scroll-pos) / 100);
+      border-radius: 0;
+    }
+    .icon-container-right {
+      display: none;
     }
   }
 
@@ -81,6 +134,22 @@
 
   .back-icon {
     color: var(--color-text-secondary);
+  }
+
+  .emoji-categories {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.3rem;
+
+    .Button.tiny.round {
+      width: 1.8rem;
+      height: 1.8rem;
+    }
+    .Button.is-active {
+      background-color: var(--color-interactive-element-hover);
+      color: var(--color-text);
+    }
   }
 
   .Loading {

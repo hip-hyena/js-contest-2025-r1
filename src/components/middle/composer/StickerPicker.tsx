@@ -2,8 +2,9 @@ import type { FC } from '../../../lib/teact/teact';
 import React, {
   memo, useEffect, useMemo,
   useRef,
+  useState,
 } from '../../../lib/teact/teact';
-import { getActions, withGlobal } from '../../../global';
+import { getActions, getGlobal, setGlobal, withGlobal } from '../../../global';
 
 import type { ApiChat, ApiSticker, ApiStickerSet } from '../../../api/types';
 import type { StickerSetOrReactionsSetOrRecent, ThreadId } from '../../../types';
@@ -21,6 +22,7 @@ import {
 import { isUserId } from '../../../global/helpers';
 import {
   selectChat, selectChatFullInfo, selectIsChatWithSelf, selectIsCurrentUserPremium, selectShouldLoopStickers,
+  selectTabState,
 } from '../../../global/selectors';
 import animateHorizontalScroll from '../../../util/animateHorizontalScroll';
 import buildClassName from '../../../util/buildClassName';
@@ -46,6 +48,30 @@ import Loading from '../../ui/Loading';
 import StickerSetCover from './StickerSetCover';
 
 import styles from './StickerPicker.module.scss';
+import './StickerPicker.scss';
+import SearchInput from '../../ui/SearchInput';
+import { ensureEmojiData } from './EmojiPicker';
+import StickerSetResult from '../../right/StickerSetResult';
+import { debounce } from '../../../util/schedulers';
+import { callApi } from '../../../api/gramjs';
+import searchWords from '../../../util/searchWords';
+import { updateStickerSets } from '../../../global/reducers';
+import { useIntersectionObserver } from '../../../hooks/useIntersectionObserver';
+const EMOJI_CATEGORIES = {
+  heart: '❤️',
+  like: '👍',
+  dislike: '👎',
+  party: '🎉',
+  haha: '😀',
+  omg: '😧',
+  sad: '☹️',
+  angry: '😠',
+  neutral: '😐',
+  what: '🤔',
+  tongue: '😝',
+};
+const searchThrottled = debounce((cb) => cb(), 500, false); // No idea why throttle was used here
+const INTERSECTION_THROTTLE = 200;
 
 type OwnProps = {
   chatId: string;
@@ -57,6 +83,8 @@ type OwnProps = {
   canSendStickers?: boolean;
   noContextMenus?: boolean;
   idPrefix: string;
+  isSearchFocused?: boolean;
+  onSearchFocused?: (focused: boolean) => void;
   onStickerSelect: (
     sticker: ApiSticker, isSilent?: boolean, shouldSchedule?: boolean, canUpdateStickerSetsOrder?: boolean,
   ) => void;
@@ -72,12 +100,16 @@ type StateProps = {
   stickerSetsById: Record<string, ApiStickerSet>;
   chatStickerSetId?: string;
   addedSetIds?: string[];
+  featuredIds?: string[];
   canAnimate?: boolean;
   isSavedMessages?: boolean;
   isCurrentUserPremium?: boolean;
+  isModalOpen: boolean;
 };
 
 const HEADER_BUTTON_WIDTH = 2.5 * REM; // px (including margin)
+
+let featuredLoaded = false;
 
 const StickerPicker: FC<OwnProps & StateProps> = ({
   chat,
@@ -92,6 +124,7 @@ const StickerPicker: FC<OwnProps & StateProps> = ({
   effectStickers,
   effectEmojis,
   addedSetIds,
+  featuredIds,
   stickerSetsById,
   chatStickerSetId,
   canAnimate,
@@ -101,6 +134,9 @@ const StickerPicker: FC<OwnProps & StateProps> = ({
   idPrefix,
   onStickerSelect,
   isForEffects,
+  isModalOpen,
+  isSearchFocused,
+  onSearchFocused,
 }) => {
   const {
     loadRecentStickers,
@@ -108,14 +144,101 @@ const StickerPicker: FC<OwnProps & StateProps> = ({
     unfaveSticker,
     faveSticker,
     removeRecentSticker,
+    loadFeaturedStickers,
   } = getActions();
 
   // eslint-disable-next-line no-null/no-null
   const containerRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line no-null/no-null
   const headerRef = useRef<HTMLDivElement>(null);
+  const searchResultsRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line no-null/no-null
   const sharedCanvasRef = useRef<HTMLCanvasElement>(null);
+  
+  const [emojis, setEmojis] = useState<AllEmojis>();
+  const [searchFilter, setSearchFilter] = useState('');
+  const [emojiCategoryFilter, setEmojiCategoryFilter] = useState('');
+  const [searchResults, setSearchResults] = useState<string[]>([]);
+  const [searchFocused, setSearchFocused] = useState(false);
+
+  const matchingEmojis = useMemo(() => {
+    if (!emojis || (!searchFilter && !emojiCategoryFilter)) {
+      return undefined;
+    }
+    const native = EMOJI_CATEGORIES[emojiCategoryFilter as keyof typeof EMOJI_CATEGORIES];
+    const all: Record<string, boolean> = {};
+    if (native) {
+      all[native] = true;
+    }
+    if (searchFilter) {
+      const filter = searchFilter.toLocaleLowerCase();
+      for (const emoji of Object.values(emojis)) {
+        if ('names' in emoji) {
+          if ((emoji as Emoji).native && emoji.names.some((name) => name.includes(filter))) {
+            all[emoji.native] = true;
+          }
+          continue;
+        }
+        if (Object.values(emoji).some((emoji) => emoji.names.some((name: string) => name.includes(filter)))) {
+          for (const e of Object.values(emoji)) {
+            if (e.native) {
+              all[e.native] = true;
+            }
+          }
+        }
+      }
+    }
+    return all;
+  }, [emojis, searchFilter, emojiCategoryFilter]);
+  useEffect(() => {
+    setTimeout(async () => {
+      const emojiData = await ensureEmojiData();
+      setEmojis(emojiData.emojis as AllEmojis);
+    }, 200);
+  }, []);
+
+  async function searchStickers(query: string) {
+    if (!query) {
+      return;
+    }
+    void searchThrottled(async () => {
+      const result = await callApi('searchStickers', { query });
+      if (!result) {
+        return;
+      }
+
+      let global = getGlobal();
+      const { setsById, added } = global.stickers;
+
+      const resultIds = result.sets.map(({ id }) => id);
+
+      if (added.setIds) {
+        added.setIds.forEach((id) => {
+          if (!resultIds.includes(id)) {
+            const { title } = setsById[id] || {};
+            if (title && searchWords(title, query)) {
+              resultIds.unshift(id);
+            }
+          }
+        });
+      }
+
+      global = updateStickerSets(
+        global,
+        'search',
+        result.hash,
+        result.sets,
+      );
+
+      setGlobal(global);
+      setSearchResults(resultIds);
+    });
+  }
+
+  if (!featuredLoaded) {
+    featuredLoaded = true;
+    loadFeaturedStickers();
+  }
 
   const {
     handleScroll: handleContentScroll,
@@ -133,6 +256,10 @@ const StickerPicker: FC<OwnProps & StateProps> = ({
     observeIntersectionForCovers,
     selectStickerSet,
   } = useStickerPickerObservers(containerRef, headerRef, prefix, isHidden);
+  
+  const {
+    observe: observeIntersection,
+  } = useIntersectionObserver({ rootRef: searchResultsRef, throttleMs: INTERSECTION_THROTTLE });
 
   const lang = useOldLang();
 
@@ -210,7 +337,16 @@ const StickerPicker: FC<OwnProps & StateProps> = ({
     effectStickers,
     isForEffects,
     effectEmojis,
+    emojiCategoryFilter,
+    searchFilter,
+    matchingEmojis,
   ]);
+  const filteredSets = useMemo(() => {
+    if (!matchingEmojis) {
+      return allSets;
+    }
+    return allSets.filter((set) => set.stickers?.some((sticker) => matchingEmojis?.[sticker.emoji as string]));
+  }, [allSets, matchingEmojis]);
 
   const noPopulatedSets = useMemo(() => (
     areAddedLoaded
@@ -226,7 +362,7 @@ const StickerPicker: FC<OwnProps & StateProps> = ({
 
   const canRenderContents = useAsyncRendering([], SLIDE_TRANSITION_DURATION);
   const shouldRenderContents = areAddedLoaded && canRenderContents
-  && !noPopulatedSets && (canSendStickers || isForEffects);
+  && /*!noPopulatedSets &&*/ (canSendStickers || isForEffects);
 
   useHorizontalScroll(headerRef, !shouldRenderContents || !headerRef.current);
 
@@ -245,6 +381,18 @@ const StickerPicker: FC<OwnProps & StateProps> = ({
 
     animateHorizontalScroll(header, newLeft);
   }, [areAddedLoaded, activeSetIndex]);
+  
+  useEffect(() => {
+    if (isSearchFocused && containerRef.current) {
+      containerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [isSearchFocused]);
+
+  useEffect(() => {
+    if (!shouldHideTopBorder) {
+      onSearchFocused?.(false);
+    }
+  }, [shouldHideTopBorder, onSearchFocused]);
 
   const handleStickerSelect = useLastCallback((sticker: ApiSticker, isSilent?: boolean, shouldSchedule?: boolean) => {
     onStickerSelect(sticker, isSilent, shouldSchedule, true);
@@ -298,14 +446,15 @@ const StickerPicker: FC<OwnProps & StateProps> = ({
             <Icon name="favorite" />
           ) : stickerSet.id === CHAT_STICKER_SET_ID ? (
             <Avatar peer={chat} size="small" />
-          ) : (
-            <StickerSetCover
-              stickerSet={stickerSet as ApiStickerSet}
-              noPlay={!canAnimate || !loadAndPlay}
-              observeIntersection={observeIntersectionForCovers}
-              sharedCanvasRef={withSharedCanvas ? sharedCanvasRef : undefined}
-              forcePlayback
-            />
+          ) : (stickerSet.stickers && (
+              <StickerSetCover
+                stickerSet={stickerSet as ApiStickerSet}
+                noPlay={!canAnimate || !loadAndPlay}
+                observeIntersection={observeIntersectionForCovers}
+                sharedCanvasRef={withSharedCanvas ? sharedCanvasRef : undefined}
+                forcePlayback
+              />
+            )
           )}
         </Button>
       );
@@ -353,9 +502,41 @@ const StickerPicker: FC<OwnProps & StateProps> = ({
     !shouldHideTopBorder && styles.headerWithBorder,
   );
 
+  function renderContent() {
+    if (!searchFilter && featuredIds) {
+      return featuredIds.map((id) => (
+        <StickerSetResult
+          key={id}
+          stickerSetId={id}
+          observeIntersection={observeIntersection}
+          observeIntersectionForShowingItems={observeIntersectionForShowingItems}
+          isModalOpen={isModalOpen}
+        />
+      ));
+    }
+
+    if (searchResults) {
+      if (!searchResults.length) {
+        return <p className="helper-text" dir="auto">Nothing found.</p>;
+      }
+
+      return searchResults.map((id) => (
+        <StickerSetResult
+          key={id}
+          stickerSetId={id}
+          observeIntersection={observeIntersection}
+          observeIntersectionForShowingItems={observeIntersectionForShowingItems}
+          isModalOpen={isModalOpen}
+        />
+      ));
+    }
+
+    return <Loading />;
+  }
+
   return (
     <div className={fullClassName}>
-      { !isForEffects && (
+      { !isForEffects && !searchFocused && !searchFilter && !emojiCategoryFilter && !noPopulatedSets && (
         <div ref={headerRef} className={headerClassName}>
           <div className="shared-canvas-container">
             <canvas ref={sharedCanvasRef} className="shared-canvas" />
@@ -371,11 +552,45 @@ const StickerPicker: FC<OwnProps & StateProps> = ({
           buildClassName(
             styles.main,
             IS_TOUCH_ENV ? 'no-scrollbar' : 'custom-scroll',
-            !isForEffects && styles.hasHeader,
+            !isForEffects && !searchFocused && !searchFilter && !emojiCategoryFilter && !noPopulatedSets && styles.hasHeader,
           )
         }
       >
-        {allSets.map((stickerSet, i) => (
+        <div className="sticker-search">
+          <SearchInput
+            value={searchFilter}
+            inputId="sticker-search"
+            placeholder={lang('Search Stickers')}
+            onChange={(filter) => {
+              setSearchFilter(filter);
+              setEmojiCategoryFilter('');
+              searchStickers(filter);
+            }}
+            focused={isSearchFocused}
+            onFocus={() => {
+              setSearchFocused(true);
+              onSearchFocused?.(true);
+            }}
+            onBlur={() => {
+              onSearchFocused?.(false);
+            }}
+            withEmojiCategories={!searchFocused && !searchFilter && !noPopulatedSets}
+            emojiCategory={emojiCategoryFilter}
+            canClose={!noPopulatedSets || (noPopulatedSets && !!searchFilter)}
+            withBackIcon={(searchFocused || emojiCategoryFilter !== '') && !noPopulatedSets}
+            onReset={() => {
+              setSearchFocused(false);
+              setSearchFilter('');
+              setEmojiCategoryFilter('');
+              onSearchFocused?.(false);
+            }}
+            onEmojiCategoryClick={(category) => {
+              setEmojiCategoryFilter(category);
+              setSearchFilter('');
+            }}
+          />
+        </div>
+        {!searchFocused && !searchFilter && filteredSets.map((stickerSet, i) => (
           <StickerSet
             key={stickerSet.id}
             stickerSet={stickerSet}
@@ -398,8 +613,14 @@ const StickerPicker: FC<OwnProps & StateProps> = ({
             onStickerRemoveRecent={handleRemoveRecentSticker}
             forcePlayback
             shouldHideHeader={stickerSet.id === EFFECT_EMOJIS_SET_ID}
+            filterStickers={emojiCategoryFilter ? (sticker => sticker.emoji ? !!matchingEmojis?.[sticker.emoji] : false) : undefined}
           />
         ))}
+        {(searchFilter || searchFocused || noPopulatedSets) && (
+          <div className="sticker-search-results" ref={searchResultsRef}>
+            {renderContent()}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -413,6 +634,7 @@ export default memo(withGlobal<OwnProps>(
       recent,
       favorite,
       effect,
+      featured,
     } = global.stickers;
 
     const isSavedMessages = selectIsChatWithSelf(global, chatId);
@@ -427,9 +649,11 @@ export default memo(withGlobal<OwnProps>(
       favoriteStickers: favorite.stickers,
       stickerSetsById: setsById,
       addedSetIds: added.setIds,
+      featuredIds: featured.setIds,
       canAnimate: selectShouldLoopStickers(global),
       isSavedMessages,
       isCurrentUserPremium: selectIsCurrentUserPremium(global),
+      isModalOpen: Boolean(selectTabState(global).openedStickerSetShortName),
       chatStickerSetId,
     };
   },

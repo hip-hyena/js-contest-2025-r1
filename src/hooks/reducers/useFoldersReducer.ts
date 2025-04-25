@@ -7,6 +7,7 @@ import type { Dispatch, StateReducer } from '../useReducer';
 import { selectChat } from '../../global/selectors';
 import { omit, pick } from '../../util/iteratees';
 import useReducer from '../useReducer';
+import EMOJI_REGEX from '../../lib/twemojiRegex';
 
 export type FolderChatType = {
   icon: IconName;
@@ -116,7 +117,7 @@ export type FoldersState = {
 export type FoldersActions = (
   'setTitle' | 'saveFilters' | 'editFolder' | 'reset' | 'setChatFilter' | 'setIsLoading' | 'setError' |
   'editIncludeFilters' | 'editExcludeFilters' | 'setIncludeFilters' | 'setExcludeFilters' | 'setIsTouched' |
-  'setFolderId' | 'setIsChatlist' | 'setEmoticon' | 'setCustomEmoji'
+  'setFolderId' | 'setIsChatlist' | 'setEmoticon' | 'setEmoji' |'setCustomEmoji'
   );
 export type FolderEditDispatch = Dispatch<FoldersState, FoldersActions>;
 
@@ -130,16 +131,37 @@ const INITIAL_STATE: FoldersState = {
   },
 };
 
+export function getEmojiPrefix(text: string, entities: ApiMessageEntity[]) {
+  if (entities?.length && entities[0].type === 'MessageEntityCustomEmoji' && entities[0].offset === 0) {
+    return text.slice(entities[0].length + 1);
+  }
+  EMOJI_REGEX.lastIndex = 0;
+  const match = EMOJI_REGEX.exec(text);
+  if (match && match.index === 0) {
+    return match[0] + ' ';
+  }
+  return '';
+}
+
+export function removeEmojiPrefix(text: string, entities: ApiMessageEntity[]) {
+  if (entities?.length && entities[0].type === 'MessageEntityCustomEmoji' && entities[0].offset === 0) {
+    return text.slice(entities[0].length + 1);
+  }
+  EMOJI_REGEX.lastIndex = 0;
+  const match = EMOJI_REGEX.exec(text);
+  if (match && match.index === 0) {
+    return text.slice(match[0].length + 1);
+  }
+  return text;
+}
+
 const foldersReducer: StateReducer<FoldersState, FoldersActions> = (
   state,
   action,
 ): FoldersState => {
   switch (action.type) {
     case 'setTitle': {
-      let prefix = '';
-      if (state.folder.title.entities?.length && state.folder.title.entities[0].type === 'MessageEntityCustomEmoji' && state.folder.title.entities[0].offset === 0) {
-        prefix = state.folder.title.text.slice(state.folder.title.entities[0].length + 1);
-      }
+      const prefix = getEmojiPrefix(state.folder.title.text, state.folder.title.entities || []);
       return {
         ...state,
         folder: {
@@ -153,12 +175,7 @@ const foldersReducer: StateReducer<FoldersState, FoldersActions> = (
       };
     }
     case 'setEmoticon': {
-      let text = state.folder.title.text;
-      if (state.folder.title.entities?.length &&
-        state.folder.title.entities[0].type === 'MessageEntityCustomEmoji' &&
-        state.folder.title.entities[0].offset === 0) {
-        text = state.folder.title.text.slice(state.folder.title.entities[0].length + 1);
-      }
+      const text = removeEmojiPrefix(state.folder.title.text, state.folder.title.entities || []);
       return {
         ...state,
         folder: {
@@ -168,6 +185,22 @@ const foldersReducer: StateReducer<FoldersState, FoldersActions> = (
             entities: [],
           },
           emoticon: action.payload,
+        },
+        isTouched: true,
+      };
+    }
+    case 'setEmoji': {
+      const emoji = action.payload;
+      const text = removeEmojiPrefix(state.folder.title.text, state.folder.title.entities || []);
+      return {
+        ...state,
+        folder: {
+          ...state.folder,
+          title: {
+            text: emoji + ' ' + text,
+            entities: [],
+          },
+          emoticon: '',
         },
         isTouched: true,
       };

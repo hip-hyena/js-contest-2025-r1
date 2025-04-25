@@ -20,6 +20,11 @@ import MenuSeparator from './MenuSeparator';
 import { IconName } from '../../types/icons';
 import './Tab.scss';
 import CustomEmoji from '../common/CustomEmoji';
+import { FOLDER_ICONS } from '../left/main/ChatFolders';
+import { BASE_URL } from '../../config';
+import { handleEmojiLoad, nativeToUnifiedExtendedWithCache } from '../../util/emoji/emoji';
+import { LOADED_EMOJIS } from '../../util/emoji/emoji';
+import { IS_PACKAGED_ELECTRON } from '../../config';
 
 type OwnProps = {
   className?: string;
@@ -140,6 +145,13 @@ const Tab: FC<OwnProps> = ({
   );
   const getLayout = useLastCallback(() => ({ withPortal: true }));
 
+  let code, src, isLoaded;
+  if (emoji && !(emoji in FOLDER_ICONS)) {
+    code = nativeToUnifiedExtendedWithCache(emoji);
+    src = `${IS_PACKAGED_ELECTRON ? BASE_URL : '.'}/img-apple-64/${code}.png`;
+    isLoaded = LOADED_EMOJIS.has(src);
+  }
+
   return (
     <div
       className={buildClassName('Tab', onClick && 'Tab--interactive', className)}
@@ -151,7 +163,15 @@ const Tab: FC<OwnProps> = ({
       <span className="Tab_inner">
         {customEmoji && <CustomEmoji className="Tab-custom-emoji" documentId={customEmoji} size={36} noPlay={noCustomEmojiPlayback} />}
         {icon && !customEmoji && <Icon name={icon} className="Tab-icon" />}
-        {emoji && !customEmoji && !icon && <span className="Tab-emoji">{emoji}</span>}
+        {emoji && !customEmoji && !icon && <img
+          src={src}
+          className={'Tab-emoji ' + (!isLoaded ? 'opacity-transition shown' : undefined)}
+          alt={emoji}
+          loading="lazy"
+          data-path={src}
+          onLoad={!isLoaded ? handleEmojiLoad : undefined}
+          draggable={false}
+        />}
         {typeof title === 'string' ? renderText(title) : title}
         {Boolean(badgeCount) && (
           <span className={buildClassName('badge', isBadgeActive && classNames.badgeActive)}>{badgeCount}</span>

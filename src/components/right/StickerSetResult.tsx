@@ -19,6 +19,7 @@ import Spinner from '../ui/Spinner';
 type OwnProps = {
   stickerSetId: string;
   observeIntersection: ObserveFn;
+  observeIntersectionForShowingItems?: ObserveFn;
   isModalOpen?: boolean;
 };
 
@@ -32,7 +33,7 @@ const PREMIUM_STICKERS_TO_DISPLAY = 3;
 const STICKERS_TO_DISPLAY = 5;
 
 const StickerSetResult: FC<OwnProps & StateProps> = ({
-  stickerSetId, observeIntersection, set, shouldPlay,
+  stickerSetId, observeIntersection, observeIntersectionForShowingItems, set, shouldPlay,
   isModalOpen, isCurrentUserPremium,
 }) => {
   const { loadStickers, toggleStickerSet, openStickerSet } = getActions();
@@ -108,6 +109,7 @@ const StickerSetResult: FC<OwnProps & StateProps> = ({
             sticker={sticker}
             size={STICKER_SIZE_SEARCH}
             observeIntersection={observeIntersection}
+            observeIntersectionForShowing={observeIntersectionForShowingItems}
             noPlay={!shouldPlay || isModalOpen}
             clickArg={sticker}
             onClick={handleStickerClick}

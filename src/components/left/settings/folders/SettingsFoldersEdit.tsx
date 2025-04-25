@@ -20,7 +20,7 @@ import { CUSTOM_PEER_EXCLUDED_CHAT_TYPES, CUSTOM_PEER_INCLUDED_CHAT_TYPES } from
 import { LOCAL_TGS_URLS } from '../../../common/helpers/animatedAssets';
 import buildClassName from '../../../../util/buildClassName';
 
-import { selectChatFilters } from '../../../../hooks/reducers/useFoldersReducer';
+import { removeEmojiPrefix, getEmojiPrefix, selectChatFilters } from '../../../../hooks/reducers/useFoldersReducer';
 import useHistoryBack from '../../../../hooks/useHistoryBack';
 import useOldLang from '../../../../hooks/useOldLang';
 
@@ -324,18 +324,23 @@ const SettingsFoldersEdit: FC<OwnProps & StateProps> = ({
     customEmojiNotificationNumber.current = Number(!notificationNumber);
   });
 
-  let code, src, isLoaded;
-  if (state.folder.emoticon && !(state.folder.emoticon in FOLDER_ICONS)) {
-    code = nativeToUnifiedExtendedWithCache(state.folder.emoticon);
-    src = `${IS_PACKAGED_ELECTRON ? BASE_URL : '.'}/img-apple-64/${code}.png`;
-    isLoaded = LOADED_EMOJIS.has(src);
-  }
-
   let title = state.folder.title.text;
   let customEmoji = undefined;
+  let emoji = state.folder.emoticon;
   if (state.folder.title.entities?.length && state.folder.title.entities[0].type === 'MessageEntityCustomEmoji' && state.folder.title.entities[0].offset === 0) {
     title = state.folder.title.text.slice(state.folder.title.entities[0].length + 1);
     customEmoji = state.folder.title.entities[0].documentId;
+  } else
+  if (!emoji) {
+    title = removeEmojiPrefix(state.folder.title.text, state.folder.title.entities || []);
+    emoji = getEmojiPrefix(state.folder.title.text, state.folder.title.entities || []).trim();
+  }
+
+  let code, src, isLoaded;
+  if (emoji && !(emoji in FOLDER_ICONS)) {
+    code = nativeToUnifiedExtendedWithCache(emoji);
+    src = `${IS_PACKAGED_ELECTRON ? BASE_URL : '.'}/img-apple-64/${code}.png`;
+    isLoaded = LOADED_EMOJIS.has(src);
   }
 
   return (
@@ -380,14 +385,14 @@ const SettingsFoldersEdit: FC<OwnProps & StateProps> = ({
               {customEmoji && (
                 <CustomEmoji documentId={customEmoji} size={32} noPlay />
               )}
-              {!customEmoji && (!state.folder.emoticon || state.folder.emoticon in FOLDER_ICONS) && (
-                <Icon name={FOLDER_ICONS[state.folder.emoticon!] || 'folder-default'} />
+              {!customEmoji && (!emoji || emoji in FOLDER_ICONS) && (
+                <Icon name={FOLDER_ICONS[emoji!] || 'folder-default'} />
               )}
-              {!customEmoji && state.folder.emoticon && !(state.folder.emoticon in FOLDER_ICONS) && (
+              {!customEmoji && emoji && !(emoji in FOLDER_ICONS) && (
                 <img
                   src={src}
                   className={!isLoaded ? 'opacity-transition shown' : undefined}
-                  alt={state.folder.emoticon}
+                  alt={emoji}
                   loading="lazy"
                   data-path={src}
                   onLoad={!isLoaded ? handleEmojiLoad : undefined}
@@ -425,9 +430,13 @@ const SettingsFoldersEdit: FC<OwnProps & StateProps> = ({
                   setIsIconMenuOpen(false);
                   dispatch({ type: 'setCustomEmoji', payload: emoji });
                 }}
-                onSimpleEmojiSelect={(emoji) => {
+                onSimpleEmojiSelect={(emoji, name) => {
                   setIsIconMenuOpen(false);
-                  dispatch({ type: 'setEmoticon', payload: emoji });
+                  if (emoji in FOLDER_ICONS) {
+                    dispatch({ type: 'setEmoticon', payload: emoji });
+                  } else {
+                    dispatch({ type: 'setEmoji', payload: emoji });
+                  }
                 }}
               />
             </Menu>

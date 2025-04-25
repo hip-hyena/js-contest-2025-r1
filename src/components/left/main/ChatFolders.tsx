@@ -6,7 +6,7 @@ import { getActions, getGlobal, withGlobal } from '../../../global';
 
 import type { ApiChatFolder, ApiChatlistExportedInvite, ApiSession, ApiSticker } from '../../../api/types';
 import type { GlobalState } from '../../../global/types';
-import type { FolderEditDispatch } from '../../../hooks/reducers/useFoldersReducer';
+import { getEmojiPrefix, removeEmojiPrefix, type FolderEditDispatch } from '../../../hooks/reducers/useFoldersReducer';
 import type { LeftColumnContent, SettingsScreens } from '../../../types';
 import type { MenuItemContextAction } from '../../ui/ListItem';
 import type { TabWithProperties } from '../../ui/TabList';
@@ -210,10 +210,14 @@ const ChatFolders: FC<OwnProps & StateProps> = ({
       let customEmoji: string | undefined;
       let text = title.text;
       let entities = title.entities;
+      let emoji = undefined;
       if (entities?.length && entities[0].type === 'MessageEntityCustomEmoji' && entities[0].offset === 0) {
         customEmoji = entities[0].documentId;
         text = text.slice(entities[0].length + 1);
         entities = entities.slice(1);
+      } else {
+        emoji = getEmojiPrefix(text, entities || []).trim();
+        text = removeEmojiPrefix(text, entities || []);
       }
 
       return {
@@ -223,8 +227,8 @@ const ChatFolders: FC<OwnProps & StateProps> = ({
           entities,
           noCustomEmojiPlayback: folder.noTitleAnimations,
         }),
-        icon: FOLDER_ICONS[folder.emoticon!] || 'folder-default',
-        emoji: folder.emoticon && folder.emoticon in FOLDER_ICONS ? folder.emoticon : undefined,
+        icon: FOLDER_ICONS[folder.emoticon!] || (emoji ? null : 'folder-default'),
+        emoji: folder.emoticon && folder.emoticon in FOLDER_ICONS ? folder.emoticon : emoji,
         customEmoji,
         noCustomEmojiPlayback: folder.noTitleAnimations,
         badgeCount: folderCountersById[id]?.chatsCount,

@@ -61,6 +61,7 @@ type OwnProps = {
   isTranslucent?: boolean;
   noContextMenus?: boolean;
   forcePlayback?: boolean;
+  filterStickers?: (sticker: ApiSticker) => boolean;
   observeIntersection?: ObserveFn;
   observeIntersectionForPlayingItems: ObserveFn;
   observeIntersectionForShowingItems: ObserveFn;
@@ -104,6 +105,7 @@ const StickerSet: FC<OwnProps> = ({
   isTranslucent,
   noContextMenus,
   forcePlayback,
+  filterStickers,
   observeIntersection,
   observeIntersectionForPlayingItems,
   observeIntersectionForShowingItems,
@@ -247,7 +249,11 @@ const StickerSet: FC<OwnProps> = ({
 
   const [isCut, , expand] = useFlag(canCut);
   const itemsBeforeCutout = itemsPerRow * 3 - 1;
-  const totalItemsCount = (withDefaultTopicIcon || withDefaultStatusIcon) ? stickerSet.count + 1 : stickerSet.count;
+  let filteredCount = stickerSet.count;
+  if (filterStickers) {
+    filteredCount = stickerSet.stickers?.filter(filterStickers).length ?? 0;
+  }
+  const totalItemsCount = (withDefaultTopicIcon || withDefaultStatusIcon) ? filteredCount + 1 : filteredCount;
 
   const itemHeight = itemSize + verticalMargin;
   const heightWhenCut = Math.ceil(Math.min(itemsBeforeCutout, totalItemsCount) / itemsPerRow)
@@ -362,7 +368,8 @@ const StickerSet: FC<OwnProps> = ({
             />
           );
         })}
-        {shouldRender && stickerSet.stickers?.slice(0, isCut ? itemsBeforeCutout : stickerSet.stickers.length)
+        {shouldRender && stickerSet.stickers?.filter(filterStickers ?? (() => true))
+          .slice(0, isCut && !filterStickers ? itemsBeforeCutout : stickerSet.stickers.length)
           .map((sticker, i) => {
             const isHqEmoji = (isRecent || isFavorite)
               && selectIsAlwaysHighPriorityEmoji(getGlobal(), sticker.stickerSetInfo);

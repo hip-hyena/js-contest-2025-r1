@@ -1,13 +1,7 @@
-export default function deleteLastCharacterOutsideSelection(html: string) {
-  const tempInput = document.createElement('div');
-  tempInput.contentEditable = 'true';
-  tempInput.style.position = 'absolute';
-  tempInput.style.left = '-10000px';
-  tempInput.style.top = '-10000px';
-  tempInput.innerHTML = html;
-  tempInput.className = 'allow-selection'; // Patch for Safari
-  document.body.appendChild(tempInput);
-  let element = tempInput.lastChild!;
+export default function deleteLastCharacterOutsideSelection(inputId: string) {
+  debugger;
+  const input = document.getElementById(inputId) as HTMLInputElement;
+  let element = input.lastChild!;
 
   if (element.lastChild) {
     // Selects the last and the deepest child of the element.
@@ -27,9 +21,4 @@ export default function deleteLastCharacterOutsideSelection(html: string) {
   selection.removeAllRanges();
   selection.addRange(range);
   document.execCommand('delete', false);
-
-  const result = tempInput.innerHTML;
-  document.body.removeChild(tempInput);
-
-  return result;
 }

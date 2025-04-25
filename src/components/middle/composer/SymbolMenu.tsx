@@ -100,6 +100,7 @@ const SymbolMenu: FC<OwnProps & StateProps> = ({
   const [activeTab, setActiveTab] = useState<number>(0);
   const [recentEmojis, setRecentEmojis] = useState<string[]>([]);
   const [recentCustomEmojis, setRecentCustomEmojis] = useState<string[]>([]);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
   const { isMobile } = useAppLayout();
 
   const [handleMouseEnter, handleMouseLeave] = useMouseInside(isOpen, onClose, undefined, isMobile);
@@ -206,6 +207,8 @@ const SymbolMenu: FC<OwnProps & StateProps> = ({
             isTranslucent={!isMobile && isBackgroundTranslucent}
             withSimpleEmojis
             withEmojiSearch
+            isSearchFocused={isSearchFocused}
+            onSearchFocused={setIsSearchFocused}
             onSimpleEmojiSelect={handleEmojiSelect}
             onCustomEmojiSelect={handleCustomEmojiSelect}
           />
@@ -222,7 +225,9 @@ const SymbolMenu: FC<OwnProps & StateProps> = ({
             chatId={chatId}
             threadId={threadId}
             isTranslucent={!isMobile && isBackgroundTranslucent}
+            isSearchFocused={isSearchFocused}
             onStickerSelect={handleStickerSelect}
+            onSearchFocused={setIsSearchFocused}
           />
         );
       case SymbolMenuTabs.GIFs:
@@ -231,7 +236,9 @@ const SymbolMenu: FC<OwnProps & StateProps> = ({
             className="picker-tab"
             loadAndPlay={canSendGifs ? isOpen && (isActive || isFrom) : false}
             canSendGifs={canSendGifs}
+            isSearchFocused={isSearchFocused}
             onGifSelect={onGifSelect}
+            onSearchFocused={setIsSearchFocused}
           />
         );
     }
@@ -271,10 +278,14 @@ const SymbolMenu: FC<OwnProps & StateProps> = ({
       )}
       <SymbolMenuFooter
         activeTab={activeTab}
-        onSwitchTab={setActiveTab}
+        onSwitchTab={(tab) => {
+          setActiveTab(tab);
+          setIsSearchFocused(false);
+        }}
         onRemoveSymbol={onRemoveSymbol}
         canSearch={isMessageComposer}
-        onSearchOpen={handleSearch}
+        onSearchOpen={() => setIsSearchFocused(true)}
+        //onSearchOpen={handleSearch}
         isAttachmentModal={isAttachmentModal}
         canSendPlainText={canSendPlainText}
       />

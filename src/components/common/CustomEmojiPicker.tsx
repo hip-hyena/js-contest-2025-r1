@@ -60,6 +60,18 @@ import { MEMO_EMPTY_ARRAY } from '../../util/memo';
 import { useIntersectionObserver } from '../../hooks/useIntersectionObserver';
 import EmojiButton from '../middle/composer/EmojiButton';
 
+const ICONS_BY_CATEGORY: Record<string, IconName> = {
+  recent: 'recent',
+  people: 'smile',
+  nature: 'animals',
+  foods: 'eats',
+  activity: 'sport',
+  places: 'car',
+  objects: 'lamp',
+  symbols: 'language',
+  flags: 'flag',
+};
+
 type OwnProps = {
   chatId?: string;
   className?: string;
@@ -76,6 +88,8 @@ type OwnProps = {
   isStatusPicker?: boolean;
   isReactionPicker?: boolean;
   isTranslucent?: boolean;
+  isSearchFocused?: boolean;
+  onSearchFocused?: (focused: boolean) => void;
   onCustomEmojiSelect: (sticker: ApiSticker) => void;
   onSimpleEmojiSelect?: (emoji: string, name: string) => void;
   onReactionSelect?: (reaction: ApiReactionWithPaid) => void;
@@ -129,6 +143,19 @@ const FOLDER_ICONS: { icon: IconName, emoji: string }[] = [
   { icon: 'folder-default', emoji: '📁' },
 ];
 const categoryIntersections: boolean[] = [];
+const EMOJI_CATEGORIES = {
+  heart: '❤️',
+  like: '👍',
+  dislike: '👎',
+  party: '🎉',
+  haha: '😀',
+  omg: '😧',
+  sad: '☹️',
+  angry: '😠',
+  neutral: '😐',
+  what: '🤔',
+  tongue: '😝',
+};
 
 const CustomEmojiPicker: FC<OwnProps & StateProps> = ({
   className,
@@ -151,6 +178,7 @@ const CustomEmojiPicker: FC<OwnProps & StateProps> = ({
   isReactionPicker,
   isStatusPicker,
   isTranslucent,
+  isSearchFocused,
   isSavedMessages,
   isCurrentUserPremium,
   withDefaultTopicIcons,
@@ -162,6 +190,7 @@ const CustomEmojiPicker: FC<OwnProps & StateProps> = ({
   defaultStatusIconsId,
   defaultTagReactions,
   isWithPaidReaction,
+  onSearchFocused,
   onCustomEmojiSelect,
   onSimpleEmojiSelect,
   onReactionSelect,
@@ -175,6 +204,8 @@ const CustomEmojiPicker: FC<OwnProps & StateProps> = ({
   // eslint-disable-next-line no-null/no-null
   const headerRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line no-null/no-null
+  const emojiCategoriesRef = useRef<HTMLDivElement>(null);
+  // eslint-disable-next-line no-null/no-null
   const sharedCanvasRef = useRef<HTMLCanvasElement>(null);
   // eslint-disable-next-line no-null/no-null
   const sharedCanvasHqRef = useRef<HTMLCanvasElement>(null);
@@ -182,7 +213,8 @@ const CustomEmojiPicker: FC<OwnProps & StateProps> = ({
   const [categories, setCategories] = useState<EmojiCategoryData[]>();
   const [emojis, setEmojis] = useState<AllEmojis>();
   const [activeCategoryIndex, setActiveCategoryIndex] = useState(0);
-  const [emojiFilter, setEmojiFilter] = useState('');
+  const [searchFilter, setSearchFilter] = useState('');
+  const [emojiCategoryFilter, setEmojiCategoryFilter] = useState('');
 
   const { isMobile } = useAppLayout();
   const {
@@ -212,18 +244,6 @@ const CustomEmojiPicker: FC<OwnProps & StateProps> = ({
   const lang = useOldLang();
 
   const areAddedLoaded = Boolean(addedCustomEmojiIds);
-
-  const filteredEmojis = useMemo(() => {
-    if (!emojis || !emojiFilter) {
-      return MEMO_EMPTY_ARRAY;
-    }
-    return Object.values(emojis).filter((emoji) => {
-      if ('names' in emoji) {
-        return emoji.names.some((name) => name.includes(emojiFilter));
-      }
-      return Object.values(emoji).some((emoji) => emoji.names.some((name) => name.includes(emojiFilter)));
-    });
-  }, [emojis, emojiFilter]);
 
   const allCategories = useMemo(() => {
     if (!categories) {
@@ -350,13 +370,15 @@ const CustomEmojiPicker: FC<OwnProps & StateProps> = ({
     }
 
     if (withSimpleEmojis) {
-      defaultSets.push({
-        id: SIMPLE_EMOJI_SET_ID,
+      // @ts-ignore
+      defaultSets.push(...allCategories.map((category, i) => ({
+        id: `${SIMPLE_EMOJI_SET_ID}-${category.id}`,
         accessHash: '',
         title: '',
         count: 0,
+        isFirstCategory: i === 0,
         isEmoji: true,
-      });
+      })));
     }
 
     const userSetIds = [...(addedCustomEmojiIds || [])];
@@ -376,19 +398,44 @@ const CustomEmojiPicker: FC<OwnProps & StateProps> = ({
     addedCustomEmojiIds, isReactionPicker, isStatusPicker, withDefaultTopicIcons, recentCustomEmojis,
     customEmojiFeaturedIds, stickerSetsById, topReactions, availableReactions, lang, recentReactions,
     defaultStatusIconsId, defaultTopicIconsId, isSavedMessages, defaultTagReactions, chatEmojiSetId,
-    isWithPaidReaction,
+    isWithPaidReaction, allCategories,
   ]);
 
   const noPopulatedSets = useMemo(() => (
     areAddedLoaded
     && allSets.filter((set) => set.stickers?.length).length === 0
   ), [allSets, areAddedLoaded]);
+  
+  const filteredEmojis = useMemo(() => {
+    if (!emojis || (!searchFilter && !emojiCategoryFilter)) {
+      return MEMO_EMPTY_ARRAY;
+    }
+    const filter = searchFilter && searchFilter.toLocaleLowerCase();
+    const native = EMOJI_CATEGORIES[emojiCategoryFilter as keyof typeof EMOJI_CATEGORIES];
+    const simple = Object.values(emojis).filter((emoji) => {
+      if (native && (emoji as Emoji).native === native) {
+        return true;
+      }
+      if (!filter) {
+        return false;
+      }
+      if ('names' in emoji) {
+        return emoji.names.some((name) => name.includes(filter));
+      }
+      return Object.values(emoji).some((emoji) => emoji.names.some((name) => name.includes(filter)));
+    });
+    let custom = allSets.map((set) => set.stickers?.filter((sticker) => {
+      return sticker.emoji && (sticker.emoji === native);
+    }) || []).flat();
+    return [...simple, ...custom];
+  }, [emojis, allSets, searchFilter, emojiCategoryFilter]);
 
   const canRenderContent = useAsyncRendering([], SLIDE_TRANSITION_DURATION);
   const shouldRenderContent = areAddedLoaded && canRenderContent && !noPopulatedSets;
+  const isEmojiActive = useMemo(() => (allSets[activeSetIndex]?.id || '').startsWith(SIMPLE_EMOJI_SET_ID), [allSets, activeSetIndex]);
 
   useHorizontalScroll(headerRef, isMobile || !shouldRenderContent);
-
+  useHorizontalScroll(emojiCategoriesRef, isMobile || !shouldRenderContent, true, true);
   // Scroll container and header when active set changes
   useEffect(() => {
     if (!areAddedLoaded) {
@@ -400,10 +447,23 @@ const CustomEmojiPicker: FC<OwnProps & StateProps> = ({
       return;
     }
 
-    const newLeft = activeSetIndex * HEADER_BUTTON_WIDTH - (header.offsetWidth / 2 - HEADER_BUTTON_WIDTH / 2);
+    const newLeft = isEmojiActive ? 0 : ((activeSetIndex - (allCategories.length - 1)) * HEADER_BUTTON_WIDTH - (header.offsetWidth / 2 - HEADER_BUTTON_WIDTH / 2));
 
     animateHorizontalScroll(header, newLeft);
-  }, [areAddedLoaded, activeSetIndex]);
+
+    if (!emojiCategoriesRef.current) {
+      return;
+    }
+
+    if (isEmojiActive) {
+      const categoryId = (allSets[activeSetIndex]?.id || '').split('-')[1]
+      const categoryIdx = allCategories.findIndex((category) => category.id === categoryId);
+      const newCategoryLeft = categoryIdx * HEADER_BUTTON_WIDTH - (150 / 2 - HEADER_BUTTON_WIDTH / 2);
+      animateHorizontalScroll(emojiCategoriesRef.current, newCategoryLeft);
+    } else {
+      animateHorizontalScroll(emojiCategoriesRef.current, 0);
+    }
+  }, [areAddedLoaded, activeSetIndex, isEmojiActive]);
 
   // Initialize data on first render.
   useEffect(() => {
@@ -414,6 +474,18 @@ const CustomEmojiPicker: FC<OwnProps & StateProps> = ({
     }, 200);
   }, []);
 
+  useEffect(() => {
+    if (isSearchFocused && containerRef.current) {
+      containerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [isSearchFocused]);
+
+  useEffect(() => {
+    if (!shouldHideTopBorder) {
+      onSearchFocused?.(false);
+    }
+  }, [shouldHideTopBorder, onSearchFocused]);
+
   const handleEmojiSelect = useLastCallback((emoji: ApiSticker) => {
     onCustomEmojiSelect(emoji);
   });
@@ -421,6 +493,7 @@ const CustomEmojiPicker: FC<OwnProps & StateProps> = ({
   const handleSimpleEmojiSelect = useLastCallback((emoji: string, name: string) => {
     onSimpleEmojiSelect && onSimpleEmojiSelect(emoji, name);
   });
+
 
   function renderCover(stickerSet: StickerSetOrReactionsSetOrRecent, index: number) {
     const firstSticker = stickerSet.stickers?.[0];
@@ -436,25 +509,60 @@ const CustomEmojiPicker: FC<OwnProps & StateProps> = ({
       return undefined;
     }
 
-    if (STICKER_SET_IDS_WITH_COVER.has(stickerSet.id) || stickerSet.hasThumbnail || !firstSticker) {
+    const isSimpleEmojis = stickerSet.id.startsWith(SIMPLE_EMOJI_SET_ID);
+    if (STICKER_SET_IDS_WITH_COVER.has(stickerSet.id) || stickerSet.hasThumbnail || !firstSticker || isSimpleEmojis) {
       const isRecent = stickerSet.id === RECENT_SYMBOL_SET_ID || stickerSet.id === POPULAR_SYMBOL_SET_ID;
-      const isSimpleEmojis = stickerSet.id === SIMPLE_EMOJI_SET_ID;
-      const isFaded = FADED_BUTTON_SET_IDS.has(stickerSet.id);
+      const isFaded = FADED_BUTTON_SET_IDS.has(stickerSet.id) || isSimpleEmojis;
+      if (isSimpleEmojis) {
+        // @ts-ignore
+        if (!stickerSet.isFirstCategory) {
+          return;
+        }
+        return (
+          <div 
+            ref={emojiCategoriesRef}
+            className={buildClassName(
+              'emoji-categories-button',
+              isEmojiActive && 'is-active',
+            )}>{
+            allCategories.map((category, i) => (
+              <Button
+                key={`${stickerSet.id}-${category.id}`}
+                className={buildClassName(
+                  'emoji-button',
+                  index + i === activeSetIndex && 'is-active',
+                )}
+                ariaLabel={category.name}
+                round
+                size='tiny'
+                faded={isFaded}
+                color="translucent"
+                // eslint-disable-next-line react/jsx-no-bind
+                  onClick={() => selectStickerSet(index + i)}
+                >
+                <Icon name={ICONS_BY_CATEGORY[category.id]} />
+              </Button>
+            ))
+          }</div>
+        );
+      }
       return (
         <Button
           key={stickerSet.id}
-          className={buttonClassName}
+          className={isRecent ? buildClassName(
+            'recent-button',
+            index === activeSetIndex && styles.activated,
+          ) : buttonClassName}
           ariaLabel={stickerSet.title}
           round
+          size={isRecent ? 'tiny' : 'default'}
           faded={isFaded}
           color="translucent"
           // eslint-disable-next-line react/jsx-no-bind
-          onClick={() => selectStickerSet((isRecent || isSimpleEmojis) ? 0 : index, isSimpleEmojis)}
+          onClick={() => selectStickerSet(isRecent ? 0 : index)}
         >
           {isRecent ? (
             <Icon name="recent" />
-          ) : isSimpleEmojis ? (
-            <Icon name="smile" />
           ) : (
             <StickerSetCover
               stickerSet={stickerSet as ApiStickerSet}
@@ -522,8 +630,8 @@ const CustomEmojiPicker: FC<OwnProps & StateProps> = ({
         className={headerClassName}
       >
         <div className="shared-canvas-container">
-          <canvas ref={sharedCanvasRef} className="shared-canvas" />
-          <canvas ref={sharedCanvasHqRef} className="shared-canvas" />
+          <canvas ref={sharedCanvasRef} className={buildClassName('shared-canvas', isEmojiActive && 'is-adjusted')} />
+          <canvas ref={sharedCanvasHqRef} className={buildClassName('shared-canvas', isEmojiActive && 'is-adjusted')} />
           {allSets.map(renderCover)}
         </div>
       </div>
@@ -535,18 +643,51 @@ const CustomEmojiPicker: FC<OwnProps & StateProps> = ({
         {withEmojiSearch && (
           <div className="emoji-search">
             <SearchInput
+              value={searchFilter}
+              focused={isSearchFocused}
               inputId="emoji-search"
               placeholder={lang('Search Emoji')}
-              onChange={setEmojiFilter}
+              onChange={(filter) => {
+                setSearchFilter(filter);
+                setEmojiCategoryFilter('');
+              }}
+              onFocus={() => onSearchFocused?.(true)}
+              onBlur={() => onSearchFocused?.(false)}
+              withEmojiCategories={!searchFilter}
+              emojiCategory={emojiCategoryFilter}
+              canClose
+              withBackIcon={emojiCategoryFilter !== ''}
+              onReset={() => {
+                setEmojiCategoryFilter('');
+                setSearchFilter('');
+                onSearchFocused?.(false);
+              }}
+              onEmojiCategoryClick={(category) => {
+                setEmojiCategoryFilter(category);
+                setSearchFilter('');
+              }}
             />
           </div>
         )}
         {withEmojiSearch && filteredEmojis.length > 0 && (
           <div className="emoji-search-results symbol-set-container">
             {filteredEmojis.map((emoji) => {
+              if ((emoji as ApiSticker).mediaType === 'sticker') {
+                const sticker = emoji as ApiSticker;
+                return (
+                  <StickerButton
+                    key={sticker.id}
+                    sticker={sticker}
+                    size={STICKER_SIZE_PICKER_HEADER}
+                    observeIntersection={observeIntersection}
+                    clickArg={sticker}
+                    onClick={handleEmojiSelect}
+                  />
+                );
+              }
               // Some emojis have multiple skins and are represented as an Object with emojis for all skins.
               // For now, we select only the first emoji with 'neutral' skin.
-              const displayedEmoji = 'id' in emoji ? emoji : emoji[1];
+              const displayedEmoji = ('id' in emoji ? emoji : emoji[1]) as Emoji;
 
               return (
                 <EmojiButton
@@ -578,24 +719,24 @@ const CustomEmojiPicker: FC<OwnProps & StateProps> = ({
         {allSets.map((stickerSet, i) => {
           const shouldHideHeader = stickerSet.id === TOP_SYMBOL_SET_ID
             || (stickerSet.id === RECENT_SYMBOL_SET_ID && (withDefaultTopicIcons || isStatusPicker))
-            || (stickerSet.id === SIMPLE_EMOJI_SET_ID);
+            || (stickerSet.id.startsWith(SIMPLE_EMOJI_SET_ID));
           const isChatEmojiSet = stickerSet.id === chatEmojiSetId;
 
-          if (stickerSet.id === SIMPLE_EMOJI_SET_ID) {
-            return (
-              <div key={stickerSet.id}>{emojis && allCategories && (
-                allCategories.map((category, i) => (
-                  <EmojiCategory
-                    category={category}
-                    index={i + 1}
-                    allEmojis={emojis}
-                    selectedEmojis={selectedReactionIds}
-                    observeIntersection={observeIntersection}
-                    shouldRender={activeCategoryIndex >= i - 1 && activeCategoryIndex <= i + 1}
-                    onEmojiSelect={handleSimpleEmojiSelect}
-                  />
-                ))
-              )}</div>
+          if (stickerSet.id.startsWith(SIMPLE_EMOJI_SET_ID)) {
+            const categoryId = stickerSet.id.split('-')[1];
+            const categoryIdx = allCategories.findIndex((category) => category.id === categoryId);
+            return emojis && (
+              <EmojiCategory
+                id={`${prefix}-${i}`}
+                key={stickerSet.id}
+                category={allCategories.find((category) => category.id === categoryId) as EmojiCategory}
+                index={categoryIdx + 1}
+                allEmojis={emojis}
+                selectedEmojis={selectedReactionIds}
+                observeIntersection={observeIntersectionForSet}
+                shouldRender={activeSetIndex >= i - 1 && activeSetIndex <= i + 1}
+                onEmojiSelect={handleSimpleEmojiSelect}
+              />
             );
           }
 
