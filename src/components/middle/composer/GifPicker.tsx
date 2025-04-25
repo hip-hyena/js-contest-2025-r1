@@ -48,7 +48,7 @@ type StateProps = {
   isSavedMessages?: boolean;
 };
 
-const PRELOAD_BACKWARDS = 96; // GIF Search bot results are multiplied by 24
+const PRELOAD_BACKWARDS = 24; // GIF Search bot results are multiplied by 24
 const INTERSECTION_DEBOUNCE = 300;
 
 let emojiDataPromise: Promise<EmojiModule>;
@@ -137,8 +137,13 @@ const GifPicker: FC<OwnProps & StateProps> = ({
      (emoji) => emojiData.emojis[emoji]));
   });
 
+  let isLoading: string | null = null;
   async function searchMoreGifs(query: string, reset = false) {
-    console.error('searchMoreGifs', query, reset);
+    //console.error('searchMoreGifs', query, reset);
+    if (!reset && isLoading === query) {
+      return;
+    }
+    isLoading = query;
     void searchThrottled(async () => {
       if (reset) {
         setSearchOffset('');
@@ -149,7 +154,8 @@ const GifPicker: FC<OwnProps & StateProps> = ({
       }
       const global = getGlobal();
       const result = await callApi('searchGifs', { query, offset: reset ? '' : searchOffset, username: global.config?.gifSearchUsername });
-      console.error('results for query ' + query, result);
+      //console.error('results for query ' + query, result);
+      isLoading = null;
       if (!result) {
         return;
       }
@@ -161,6 +167,27 @@ const GifPicker: FC<OwnProps & StateProps> = ({
   useHorizontalScroll(headerRef);
   const hasResults = Boolean(searchFilter !== undefined && searchResults && searchResults.length);
   function renderContent() {
+    //return <Loading />
+    if (!(canRenderContents && (searchFilter || emojiCategoryFilter))) {
+      return canRenderContents && savedGifs && savedGifs.length ? (
+        savedGifs.map((gif) => (
+          <GifButton
+            key={gif.id}
+            gif={gif}
+            observeIntersection={observeIntersection}
+            isDisabled={!loadAndPlay}
+            onClick={canSendGifs ? onGifSelect : undefined}
+            onUnsaveClick={handleUnsaveClick}
+            isSavedMessages={isSavedMessages}
+          />
+        ))
+      ) : canRenderContents && savedGifs ? (
+        <div className="picker-disabled">No saved GIFs.</div>
+      ) : (
+        <Loading />
+      )
+    }
+
     if (searchFilter === undefined) {
       return undefined;
     }
@@ -249,40 +276,22 @@ const GifPicker: FC<OwnProps & StateProps> = ({
         )}
         {!canSendGifs ? (
           <div className="picker-disabled">Sending GIFs is not allowed in this chat.</div>
-        ) : canRenderContents && (searchFilter || emojiCategoryFilter) ? (searchResults ?
+        ) : (
           <InfiniteScroll
             ref={resultsRef}
-            className={buildClassName('gif-container custom-scroll', hasResults && 'grid')}
+            className={buildClassName('gif-container custom-scroll', (hasResults || !(searchFilter || emojiCategoryFilter)) && 'grid')}
             items={searchResults}
+            scrollContainerClosest=".GifPicker"
             itemSelector=".GifButton"
             preloadBackwards={PRELOAD_BACKWARDS}
             noFastList
-            onLoadMore={({ direction }) => {
-              if (direction === LoadMoreDirection.Forwards) {
-                searchMoreGifs(searchFilter || emojiCategoryFilter);
-              }
-            }}
+            onLoadMore={canRenderContents && (searchFilter || emojiCategoryFilter) && hasResults? ({ direction }) => {
+              //console.log('Loading more gifs', direction);
+              searchMoreGifs(searchFilter || emojiCategoryFilter);
+            } : undefined}
           >
             {renderContent()}
-          </InfiniteScroll> : <Loading />
-        ) : canRenderContents && savedGifs && savedGifs.length ? (
-          <div className="gif-container grid">{(
-            savedGifs.map((gif) => (
-              <GifButton
-                key={gif.id}
-                gif={gif}
-                observeIntersection={observeIntersection}
-                isDisabled={!loadAndPlay}
-                onClick={canSendGifs ? onGifSelect : undefined}
-                onUnsaveClick={handleUnsaveClick}
-                isSavedMessages={isSavedMessages}
-              />
-            ))
-          )}</div>
-        ) : canRenderContents && savedGifs ? (
-          <div className="picker-disabled">No saved GIFs.</div>
-        ) : (
-          <Loading />
+          </InfiniteScroll>
         )}
       </div>
     </div>
