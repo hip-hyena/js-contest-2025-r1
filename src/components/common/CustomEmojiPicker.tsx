@@ -601,7 +601,7 @@ const CustomEmojiPicker: FC<OwnProps & StateProps> = ({
   if (!shouldRenderContent) {
     return (
       <div className={fullClassName}>
-        {noPopulatedSets ? (
+        {noPopulatedSets && !withSimpleEmojis ? (
           <div className={pickerStyles.pickerDisabled}>{lang('NoStickers')}</div>
         ) : (
           <Loading />

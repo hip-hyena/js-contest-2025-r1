@@ -399,7 +399,7 @@ const MessageInput: FC<OwnProps & StateProps> = ({
       if (!selection || !selection.rangeCount) return;
   
       const range = selection.getRangeAt(0);
-      const blockquote = range.startContainer.parentElement?.closest('blockquote');
+      const blockquote = (range.startContainer instanceof HTMLElement ? range.startContainer : range.startContainer.parentElement)?.closest('blockquote');
       
       if (blockquote) {
         // Count consecutive br elements at the end
