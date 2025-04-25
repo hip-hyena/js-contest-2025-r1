@@ -32,6 +32,7 @@ import { debounce } from '../../../util/schedulers';
 import Icon from '../../common/icons/Icon';
 import Button from '../../ui/Button';
 import { LoadMoreDirection } from '../../../types';
+import animateScroll from '../../../util/animateScroll';
 const searchThrottled = debounce((cb) => cb(), 500, false);
 
 type OwnProps = {
@@ -109,12 +110,19 @@ const GifPicker: FC<OwnProps & StateProps> = ({
 
   const [gifCategories, setGifCategories] = useState<Emoji[]>([]);
 
+  const scrollToTop = useLastCallback(() => {
+    containerRef.current && animateScroll({
+      container: containerRef.current,
+      element: containerRef.current.firstElementChild as HTMLElement,
+      position: 'start',
+    });
+  });
   
   useEffect(() => {
-    if (isSearchFocused && containerRef.current) {
-      containerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    if (isSearchFocused) {
+      scrollToTop();
     }
-  }, [isSearchFocused]);
+  }, [isSearchFocused, scrollToTop]);
 
   useEffect(() => {
     if (!shouldHideTopBorder) {
@@ -228,6 +236,7 @@ const GifPicker: FC<OwnProps & StateProps> = ({
               setSearchFilter('');
               setEmojiCategoryFilter('');
               onSearchFocused?.(false);
+              scrollToTop();
             }}
           >
             <Icon name="recent" />
@@ -245,6 +254,7 @@ const GifPicker: FC<OwnProps & StateProps> = ({
                   searchMoreGifs(category.native, true);
                 }
                 onSearchFocused?.(false);
+                scrollToTop();
               }}
             />
           ))}

@@ -59,6 +59,7 @@ import { EmojiCategoryData } from '../middle/composer/EmojiPicker';
 import { MEMO_EMPTY_ARRAY } from '../../util/memo';
 import { useIntersectionObserver } from '../../hooks/useIntersectionObserver';
 import EmojiButton from '../middle/composer/EmojiButton';
+import animateScroll from '../../util/animateScroll';
 
 const ICONS_BY_CATEGORY: Record<string, IconName> = {
   recent: 'recent',
@@ -474,11 +475,19 @@ const CustomEmojiPicker: FC<OwnProps & StateProps> = ({
     }, 200);
   }, []);
 
+  const scrollToTop = useLastCallback(() => {
+    containerRef.current && animateScroll({
+      container: containerRef.current,
+      element: containerRef.current.firstElementChild as HTMLElement,
+      position: 'start',
+    });
+  });
+
   useEffect(() => {
     if (isSearchFocused && containerRef.current) {
-      containerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+      scrollToTop();
     }
-  }, [isSearchFocused]);
+  }, [isSearchFocused, scrollToTop]);
 
   useEffect(() => {
     if (!shouldHideTopBorder) {

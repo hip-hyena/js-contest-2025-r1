@@ -57,6 +57,7 @@ import { callApi } from '../../../api/gramjs';
 import searchWords from '../../../util/searchWords';
 import { updateStickerSets } from '../../../global/reducers';
 import { useIntersectionObserver } from '../../../hooks/useIntersectionObserver';
+import animateScroll from '../../../util/animateScroll';
 const EMOJI_CATEGORIES = {
   heart: '❤️',
   like: '👍',
@@ -381,12 +382,20 @@ const StickerPicker: FC<OwnProps & StateProps> = ({
 
     animateHorizontalScroll(header, newLeft);
   }, [areAddedLoaded, activeSetIndex]);
+
+  const scrollToTop = useLastCallback(() => {
+    containerRef.current && animateScroll({
+      container: containerRef.current,
+      element: containerRef.current.firstElementChild as HTMLElement,
+      position: 'start',
+    });
+  });
   
   useEffect(() => {
     if (isSearchFocused && containerRef.current) {
-      containerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+      scrollToTop();
     }
-  }, [isSearchFocused]);
+  }, [isSearchFocused, scrollToTop]);
 
   useEffect(() => {
     if (!shouldHideTopBorder) {
